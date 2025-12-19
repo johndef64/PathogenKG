@@ -1,6 +1,11 @@
 ﻿# PathogenKG Dataset and GNN Model Training
 
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Datasets-blue)](https://huggingface.co/datasets/johndef64/PathogenKG)
+[![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![PyG](https://img.shields.io/badge/PyTorch_Geometric-2.0+-3C2179?logo=pytorch&logoColor=white)](https://pytorch-geometric.readthedocs.io/)
+[![Python](https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 PathogenKG is a knowledge graph dataset focused on pathogen-related biological entities and their relationships. This project provides tools for constructing multi-organism-specific knowledge graphs from pathogen data, merging multiple pathogen graphs, and training Graph Neural Network (GNN) models for link prediction tasks. The dataset and models can be used for drug discovery, understanding pathogen-host interactions, and exploring biological relationships in infectious diseases.
 
