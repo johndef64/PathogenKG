@@ -1,4 +1,4 @@
-
+﻿
 #%%
 import pandas as pd
 import gzip
@@ -103,7 +103,7 @@ for _, row in tqdm(h_string.iterrows()):
 triples_df = pd.DataFrame(triples)
 
 # Salvare il dataset di triple (opzionale)
-triples_df#.to_csv('vitagraph_drug_target_triples.csv', index=False)
+triples_df#.to_csv('pathogenkg_drug_target_triples.csv', index=False)
 #%% MULTI THREADING
 import pandas as pd
 from tqdm import tqdm

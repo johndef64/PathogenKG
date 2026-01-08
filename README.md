@@ -22,6 +22,9 @@ conda create -n gnn2 python=3.10 -y  \
 
 ### Full Pipeline
 
+**/downloadres** 
+- Get source datasets from STRING and DrugBank
+
 **`generate_all_pathogenkg.sh`**
 - Executes `build_pathogenkg.py` on all available pathogen datasets to generate organism-specific knowledge graphs
 - Produces PathogenKG graphs for each pathogen organism

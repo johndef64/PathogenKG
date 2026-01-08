@@ -100,7 +100,7 @@ def get_dataset(target, task, validation_size, test_size, quiet, seed):
 def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations):
   with open(models_params_path, 'r') as f:
     models_params = json.load(f)
-  model_params = models_params[task]['vitagraph_no_features'][model_name]
+  model_params = models_params[task]['pathogenkg_no_features'][model_name]
 
   conv_hidden_channels = {f'layer_{x}':model_params[f'layer_{x}']  for x in range(model_params['conv_layer_num'])} 
 

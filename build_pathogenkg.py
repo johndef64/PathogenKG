@@ -193,7 +193,7 @@ def get_target_drugs(target):
 	drugbank_mapping = load_drugbank_mapping()
 	target_drugs = []
 	
-	interactions_path = 'dataset/DRUGBANK/vitagraph_drug_target_triples.csv'
+	interactions_path = 'dataset/DRUGBANK/pathogenkg_drug_target_triples.csv'
 	with open(interactions_path, 'r') as fin:
 		reader = csv.reader(fin)
 		next(reader)  # Skip header

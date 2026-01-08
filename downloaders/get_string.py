@@ -2,15 +2,21 @@
 import requests
 import os
 from tqdm import tqdm
-os.chdir('../')
-os.getcwd()
-os.chdir('dataset')
+os.chdir('../dataset')
 
-# Lista degli ID di taxonomia che vogliamo scaricare
-tax_ids =[9606, 83332, 224308, 208964, 99287, 71421, 243230, 
+# Txonomy ID list (version 1)
+tax_ids_prev =[9606, 83332, 224308, 208964, 99287, 71421, 243230, 
           85962, 171101, 243277, 294, 1314, 272631,
           212717, 36329, 237561, 6183, 5664, 185431, 330879]
  # ad esempio, 9606 = Homo sapiens, 294 = Saccharomyces cerevisiae
+
+# load all taxa ids (version 2)
+import pandas as pd
+taxa_df = pd.read_csv("DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
+tax_ids = taxa_df.taxonomy_id.to_list()
+# tax_ids = list(set(tax_ids) - set(tax_ids_prev))
+
+#%%
 
 # Lista dei file da scaricare per ogni tax_id
 files = [
