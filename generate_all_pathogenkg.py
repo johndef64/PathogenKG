@@ -1,4 +1,5 @@
-﻿import os
+﻿#%%
+import os
 import subprocess
 import time
 
@@ -7,6 +8,12 @@ AVAILABLE_TARGETS = [
     "85962", "171101", "243277", "294", "1314", "272631",
     "212717", "36329", "237561", "6183", "5664", "185431", "330879"
 ]
+
+# load all taxa ids (version 2)
+import pandas as pd
+taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
+tax_ids = taxa_df.taxonomy_id.astype(str).to_list()
+AVAILABLE_TARGETS = list(set(tax_ids) - set(AVAILABLE_TARGETS))
 
 SCRIPT = "build_pathogenkg.py"
 LOG_DIR = "logs"
@@ -70,8 +77,10 @@ def main():
     else:
         print("🎉 All targets completed successfully!")
     
-    print(f"⏱️  Total time: {int(duration)}s ({duration/60:.1f} minutes)")
+    print(f"⏱️ Total time: {int(duration)}s ({duration/60:.1f} minutes)")
     print(f"📁 Logs available in: {LOG_DIR}/")
 
 if __name__ == "__main__":
     main()
+
+# %%

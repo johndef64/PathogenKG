@@ -13,13 +13,17 @@ logging.basicConfig(
 	datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-AVAILABLE_TARGETS = [
+AVAILABLE_TARGETS_v1 = [
 	'83332', '224308', '208964', '99287', '71421', '243230', 
 	'85962', '171101', '243277', '294', '1314', '272631',
 	'212717', '36329', '237561', '6183', '5664', '185431', '330879'
 ]
+import pandas as pd
+taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
+tax_ids = taxa_df.taxonomy_id.astype(str).to_list()
+AVAILABLE_TARGETS = list(set(tax_ids))
 
-OUT_PATH = 'dataset/pathogenkg/'
+OUT_PATH = 'dataset/pathogenkg/new/'
 
 def read_gz_file(input_path, encoding='utf-8'):
 	"""Generator for reading gzipped files line by line."""
@@ -215,7 +219,7 @@ def get_target_drugs(target):
 def save_pathogenkg(data_lists, pathogenkg_path):
 	"""Save all data to PathogenKG file."""
 	with open(pathogenkg_path, 'w') as fout:
-		fout.write('head\interaction\ttail\tsource\ttype\n')
+		fout.write('head\tinteraction\ttail\tsource\ttype\n')
 		for data_list in data_lists:
 			for line in data_list:
 				fout.write(f'{line}\n')

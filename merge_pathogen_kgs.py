@@ -7,13 +7,19 @@ from collections import defaultdict
 import pandas as pd
 from src.bio_utils import get_total_time
 
-available_targets = [
+minimal_available_targets = [
     '83332', '224308', '208964', '99287', '71421', '243230',
     '85962', '171101', '243277', '294', '1314', '272631',
     '212717', '36329', '237561', '6183', '5664', '185431', '330879'
 ]
 
-file_path = 'dataset/pathogenkg/'
+import pandas as pd
+taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
+tax_ids = taxa_df.taxonomy_id.astype(str).to_list()
+available_targets = list(set(tax_ids) )
+# available_targets = minimal_available_targets 
+
+file_path = f'dataset/pathogenkg/'
 
 def concatenate_all_targets(targets, out_path):
     """Concatenate all target PathogenKG TSV files (same column structure).
@@ -61,7 +67,9 @@ def concatenate_all_targets(targets, out_path):
         dfs.append(df)
 
     out_df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=expected_cols)
-    out_df.to_csv(out_path, sep='\t', index=False)
+    out_path = out_path.replace('.tsv', f'.tsv.zip')
+    # save as compressed TSV
+    out_df.to_csv(out_path, sep='\t', index=False, compression='zip')
 
     logging.info(f'{logging_header} Done')
     return int(len(out_df)), lines_per_target
@@ -72,8 +80,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Concatenate all target PathogenKG TSV files (same column structure)'
     )
-    parser.add_argument('--output', default='PathogenKG_merged.tsv',
-                        help='Output filename (default: PathogenKG_merged.tsv)')
+    parser.add_argument('--output', default=f'PathogenKG_n{str(len(available_targets))}.tsv',
+                        help='Output filename')
     args = parser.parse_args()
     
     out_path = os.path.join(file_path, args.output)

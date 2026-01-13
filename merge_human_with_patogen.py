@@ -13,7 +13,7 @@ available_targets = [
 ]
 
 file_path = 'dataset/pathogenkg/'
-human_vitagraph_path = os.path.join(file_path, 'VitaGraph_human_extended.tsv')
+human_pathogenkg_path = os.path.join(file_path, 'VitaGraph_human_extended.tsv')
 
 def extract_info_from_line(line):
   """Extract structured info from TSV line."""
@@ -62,8 +62,8 @@ def should_include_line(info, orthology_groups):
     return False
   return True
 
-def merge_vitagraph_with_pathogenkg(target_path, out_path):
-  logging_header = '[merge_vitagraph_with_pathogenkg]'
+def merge_pathogenkg_with_pathogenkg(target_path, out_path):
+  logging_header = '[merge_pathogenkg_with_pathogenkg]'
   
   # Load orthology groups from target
   logging.info(f'{logging_header} Extracting orthology groups from target')
@@ -80,7 +80,7 @@ def merge_vitagraph_with_pathogenkg(target_path, out_path):
     # Process human vitagraph
     logging.info(f'{logging_header} Merging knowledge graphs...')
 
-    with open(human_vitagraph_path, 'r') as fin:
+    with open(human_pathogenkg_path, 'r') as fin:
       reader = csv.reader(fin, delimiter='\t')
       next(reader) 
       
@@ -122,7 +122,7 @@ if __name__ == '__main__':
   logging.info(f'Output: {out_path}')
   
   start = time()
-  human_lines_saved, target_lines_saved = merge_vitagraph_with_pathogenkg(in_pathogenkg_path, out_path)
+  human_lines_saved, target_lines_saved = merge_pathogenkg_with_pathogenkg(in_pathogenkg_path, out_path)
   total_lines = human_lines_saved + target_lines_saved
   elapsed = get_total_time(start, time())
   
