@@ -315,7 +315,10 @@ def load_data(edge_index_path, features_paths_per_type, quiet=True, debug=False,
 		  from entity prefixes (e.g., "Compound::xyz" -> "Compound").
 		- Column names can be specified explicitly or auto-detected from first 3 columns.
 	"""
-	edge_ind = pd.read_csv(edge_index_path, sep='\t', dtype=str)
+	if edge_index_path.endswith(".zip"):
+		edge_ind = pd.read_csv(edge_index_path, sep='\t', dtype=str, compression='zip')
+	else:
+		edge_ind = pd.read_csv(edge_index_path, sep='\t', dtype=str)	
 	
 	# Auto-detect or use specified column names for head, interaction, tail
 	# Assume the first 3 columns are head, interaction, tail if not specified
@@ -478,47 +481,64 @@ def add_self_loops(train_index, num_entities, num_relations):
 
 def set_target_label(edge_ind, target_edges, debug=False):
 	"""
-	Label edges as target (1) or non-target (0) based on edge type.
+	Label edges as target (1) or non-target (0) based on task specification.
 	
-	Edge type is derived from entity prefixes: e.g., 'Compound-ExtGene'.
-	No 'type' column is needed - it's computed on-the-fly from the triples.
+	The task can be specified as:
+	  1. An edge type derived from entity prefixes (e.g., 'Compound-ExtGene')
+	  2. An interaction name from the dataset (e.g., 'TARGET', 'GENE_BIND', 'CMP_BIND')
+	
+	Both are matched case-insensitively and with underscore/space normalization.
 	
 	Args:
 		edge_ind: DataFrame with 'head', 'interaction', 'tail' columns.
-		target_edges: List of edge types to mark as targets (e.g., ['Compound-ExtGene']).
-		              Both directions are matched: 'A-B' matches edges A->B and B->A.
+		target_edges: List of tasks (edge types or interaction names).
 		debug: If True, save debug files.
 	
 	Returns:
 		DataFrame with added 'label' column (1 for target, 0 otherwise).
 	"""
-	# Build set of target edge types including reversed versions
-	# e.g., 'Compound-ExtGene' also matches 'ExtGene-Compound'
-	target_edges_set = set()
-	for edge_type in target_edges:
-		target_edges_set.add(edge_type)
-		# Add reversed version: 'A-B' -> 'B-A'
-		if '-' in edge_type:
-			parts = edge_type.split('-')
-			if len(parts) == 2:
-				target_edges_set.add(f"{parts[1]}-{parts[0]}")
+	def normalize(s):
+		"""Normalize string for matching: lowercase, replace spaces with underscores"""
+		return str(s).lower().replace(" ", "_")
 	
-	# Derive edge type from entity prefixes (no 'type' column needed)
+	# Build normalized set of targets (including reversed edge types)
+	target_set_normalized = set()
+	for t in target_edges:
+		target_set_normalized.add(normalize(t))
+		# Add reversed version for edge types: 'A-B' -> 'B-A'
+		if '-' in t:
+			parts = t.split('-')
+			if len(parts) == 2:
+				target_set_normalized.add(normalize(f"{parts[1]}-{parts[0]}"))
+	
+	# Derive edge type from entity prefixes
 	edge_ind["_edge_type"] = edge_ind.apply(
 		lambda row: get_edge_type(row['head'], row['tail']),
 		axis=1
 	)
-	edge_ind["label"] = edge_ind["_edge_type"].apply(lambda x: x in target_edges_set).astype(int)
 	
-	# Show available edge types for debugging
-	available_types = edge_ind["_edge_type"].unique().tolist()
+	# Normalize interaction column for matching
+	edge_ind["_interaction_norm"] = edge_ind["interaction"].apply(normalize)
+	edge_ind["_edge_type_norm"] = edge_ind["_edge_type"].apply(normalize)
+	
+	# Match against either edge type OR interaction name
+	edge_ind["label"] = (
+		edge_ind["_edge_type_norm"].isin(target_set_normalized) |
+		edge_ind["_interaction_norm"].isin(target_set_normalized)
+	).astype(int)
+	
+	# Show available options for debugging
+	available_edge_types = edge_ind["_edge_type"].unique().tolist()
+	available_interactions = edge_ind["interaction"].unique().tolist()
 	num_target = edge_ind["label"].sum()
-	print(f"[set_target_label] Looking for: {target_edges} (and reversed)")
-	print(f"[set_target_label] Available edge types: {available_types}")
+	
+	print(f"[set_target_label] Looking for: {target_edges}")
+	print(f"[set_target_label] Available edge types: {available_edge_types}")
+	print(f"[set_target_label] Available interactions: {available_interactions}")
 	print(f"[set_target_label] Found {num_target} target edges out of {len(edge_ind)} total")
 	
-	# Remove temporary column
-	edge_ind = edge_ind.drop(columns=["_edge_type"])
+	# Remove temporary columns
+	edge_ind = edge_ind.drop(columns=["_edge_type", "_interaction_norm", "_edge_type_norm"])
 	
 	if debug:
 		os.makedirs("debug", exist_ok=True)

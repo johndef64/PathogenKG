@@ -82,6 +82,7 @@ BASE_SEED = 42
 # Single, pre-merged dataset ready for training.
 dataset = 'PathogenKG_merged.tsv'
 dataset = 'PathogenKG_n19.tsv'
+dataset = 'PathogenKG_n19.tsv'
 DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -166,10 +167,7 @@ def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversam
                                                  )
   
   # Label target edges BEFORE converting to IDs (need string entity names to derive edge types)
-  edge_index = set_target_label(edge_index, 
-                                [ x for x in task.split(',')], 
-                                #  debug=DEBUG
-                                )
+  edge_index = set_target_label(edge_index, [ x for x in task.split(',')] )
   
   ent2id, all_nodes_per_type  = entities2id_offset(edge_index, node_features_per_type, quiet)
   relation2id                 = rel2id_offset(edge_index)
@@ -236,7 +234,18 @@ def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversam
 def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations):
   with open(models_params_path, 'r') as f:
     models_params = json.load(f)
-  model_params = models_params[task][model_name]
+  
+  # Use task params if available, otherwise use "default" or fall back to first available task
+  if task in models_params:
+    model_params = models_params[task][model_name]
+  elif "default" in models_params:
+    print(f"[get_model] Task '{task}' not found in params, using 'default'")
+    model_params = models_params["default"][model_name]
+  else:
+    # Fall back to first available task (e.g., Compound-ExtGene)
+    fallback_task = list(models_params.keys())[0]
+    print(f"[get_model] Task '{task}' not found in params, using '{fallback_task}' params")
+    model_params = models_params[fallback_task][model_name]
 
   conv_hidden_channels = {f'layer_{x}':model_params[f'layer_{x}']  for x in range(model_params['conv_layer_num'])} 
 
@@ -427,12 +436,16 @@ def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, re
     # Use provided task or fall back to args.task
     eval_task = task if task is not None else args.task
     
-    # Build set of target edge types including reversed version
-    eval_task_set = {eval_task}
+    def normalize(s):
+        """Normalize string for matching: lowercase, replace spaces with underscores"""
+        return str(s).lower().replace(" ", "_")
+    
+    # Build normalized set of targets (including reversed edge types)
+    eval_task_normalized = {normalize(eval_task)}
     if '-' in eval_task:
         parts = eval_task.split('-')
         if len(parts) == 2:
-            eval_task_set.add(f"{parts[1]}-{parts[0]}")
+            eval_task_normalized.add(normalize(f"{parts[1]}-{parts[0]}"))
     
     print(f"[i] Evaluating model for novel {eval_task} interactions...")
     with torch.no_grad():
@@ -442,19 +455,25 @@ def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, re
         else:
             out = model(flattened_features_per_type, train_index)
         
-        # Filter edges by task type (matching both directions) - derived from entity prefixes
+        # Filter edges by task - match either edge type OR interaction name
         task_mask = edge_index.apply(
-            lambda row: get_edge_type(row['head'], row['tail']) in eval_task_set, 
+            lambda row: (
+                normalize(get_edge_type(row['head'], row['tail'])) in eval_task_normalized or
+                normalize(row['interaction']) in eval_task_normalized
+            ),
             axis=1
         )
         task_edges = edge_index[task_mask]
         
         if len(task_edges) == 0:
-            # Show available edge types for debugging
+            # Show available options for debugging
             available_types = edge_index.apply(
                 lambda row: get_edge_type(row['head'], row['tail']), axis=1
             ).unique().tolist()
-            print(f"[WARNING] No edges found for task '{eval_task}'. Available types: {available_types}")
+            available_interactions = edge_index['interaction'].unique().tolist()
+            print(f"[WARNING] No edges found for task '{eval_task}'.")
+            print(f"  Available edge types: {available_types}")
+            print(f"  Available interactions: {available_interactions}")
             return []
         
         # Get unique head and tail entities for this task
@@ -776,7 +795,9 @@ if __name__ == '__main__':
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
   
   # add task as argument
-  parser.add_argument('--task', type=str, default='Compound-ExtGene', help='Task to perform.')
+  parser.add_argument('--task', type=str, 
+                      default='Compound-ExtGene', 
+                      help='Task to perform.')
 
 
 
@@ -835,6 +856,9 @@ if __name__ == '__main__':
 
   python train_and_eval.py --model compgcn --pretrain_epochs 100 --freeze_base --epochs 200
 
+  -- on DRKG (simple triplets):
+  python train_and_eval.py --model compgcn --epochs 100 --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
+  
 
   -- on DRKG dataset:
   python train_and_eval.py --model compgcn --epochs 300 --task Compound-Gene --tsv dataset/drkg/drkg.tsv
