@@ -3,14 +3,14 @@ import wandb
 import torch
 from src.utils import set_seed
 import torch.nn.functional as F
-from train_and_eval import get_dataset, train, test, negative_sampling
+from train_and_eval_v2 import get_dataset, train, test, negative_sampling
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
 from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
 
 # WandB configuration
-PROJECT_NAME = "VitaExt"
+PROJECT_NAME = "PathogenKG-Hyperparameter-Optimization"  # Replace with your WandB project name
 # ENTITY = "gidek"  # Replace with your WandB entity
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"  # Replace with your WandB entity
 
@@ -145,8 +145,8 @@ def train_model():
 	model_name = config.model_name
 	
 	# Fixed training parameters
-	target = '83332'  
-	task = 'Compound-ExtGene'
+	tsv_path = 'dataset/PathogenKG_n19.tsv'  
+	task = "TARGET"  #'Compound-ExtGene'
 	validation_size = 0.1
 	test_size = 0.2
 	epochs = 200  # Reduced for hyperopt
@@ -170,7 +170,7 @@ def train_model():
 		 train_triplets, train_index, flattened_features_per_type, val_triplets,
 		 train_val_triplets, test_triplets, train_val_test_triplets,
 		 edge_index, ent2id, relation2id) = get_dataset(
-			target, task, validation_size, test_size, True, seed, alone,
+			tsv_path, task, validation_size, test_size, True, seed, alone,
 			# added new {2025-12-15}
 			oversample_rate=oversample_rate,
 			undersample_rate=undersample_rate

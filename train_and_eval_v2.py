@@ -796,7 +796,8 @@ if __name__ == '__main__':
   
   # add task as argument
   parser.add_argument('--task', type=str, 
-                      default='Compound-ExtGene', 
+                      #default='Compound-ExtGene', 
+                      default='TARGET', 
                       help='Task to perform.')
 
 

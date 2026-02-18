@@ -13,8 +13,8 @@ PathogenKG is a knowledge graph dataset focused on pathogen-related biological e
 ## Preparing the Environment
 
 ```bash
-conda create -n gnn2 python=3.10 -y  \
-  && conda activate gnn2 \
+conda create -n gnn python=3.10 -y  \
+  && conda activate gnn \
   && pip install -r requirements.txt
 ``` 
 
