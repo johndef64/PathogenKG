@@ -18,6 +18,16 @@ conda create -n gnn2 python=3.10 -y  \
   && pip install -r requirements.txt
 ``` 
 
+if torch-sparse installation fails, try installing it separately:
+
+```bash
+pip uninstall -y torch torchvision torchaudio
+pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1 torchvision torchaudio
+pip install --no-cache-dir --only-binary=:all: \
+  pyg_lib torch-scatter torch-sparse torch-cluster torch-spline-conv \
+  -f https://data.pyg.org/whl/torch-2.7.1+cu128.html
+```
+
 ## Knowledge Graph Construction
 
 ### Full Pipeline
