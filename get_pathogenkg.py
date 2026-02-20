@@ -27,7 +27,7 @@ from typing import Optional
 root = "https://huggingface.co/datasets/johndef64/PathogenKG/resolve/main/"
 
 DATA = {
-    "drkg_extended": f"{root}drkg_extended.zip?download=true",
+    "drkg_extended": f"{root}drkg_extended.tsv.zip?download=true",
     "pathogens": f"{root}pathogenkg_pathogens_v2.zip?download=true"
 }
 DATASETS = {
@@ -37,6 +37,7 @@ DATASETS = {
 
 
 SOURCE_DATA = {"source_datasets": f"{root}source_datasets.zip?download=true"}
+ALL_DOWNLOADS = {**DATASETS, **DATA}
 
 DATA_DIR = Path("dataset/pathogenkg")
 DATASET_DIR = Path("dataset")
@@ -63,6 +64,18 @@ def extract_zip(zip_path: Path) -> None:
     print(f"Extracted {zip_path.name}")
 
 
+def is_zip_extracted(zip_path: Path) -> bool:
+    """Return True if all members of the zip already exist in target directory."""
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
+        for member in zip_ref.namelist():
+            # Skip directory entries; files are enough to detect extraction
+            if member.endswith("/"):
+                continue
+            if not (zip_path.parent / member).exists():
+                return False
+    return True
+
+
 def download_pathogenkg_dataset(dataset_name: str, extract: bool = True, save_dir: Path = DATA_DIR) -> Path:
     """
     Download a specific  dataset.
@@ -74,14 +87,16 @@ def download_pathogenkg_dataset(dataset_name: str, extract: bool = True, save_di
     Returns:
         Path to the downloaded (and extracted) file
     """
-    if dataset_name not in DATASETS:
-        raise ValueError(f"Unknown dataset: {dataset_name}. Available: {list(DATASETS.keys())}")
+    if dataset_name not in ALL_DOWNLOADS:
+        raise ValueError(
+            f"Unknown dataset: {dataset_name}. Available: {list(ALL_DOWNLOADS.keys())}"
+        )
     
     # Create directory if it doesn't exist
     save_dir.mkdir(parents=True, exist_ok=True)
     
     # Download file
-    url = DATASETS[dataset_name]
+    url = ALL_DOWNLOADS[dataset_name]
     filename = f"{dataset_name}.zip"
     output_path = save_dir / filename
     
@@ -92,7 +107,10 @@ def download_pathogenkg_dataset(dataset_name: str, extract: bool = True, save_di
     
     # Extract if requested
     if extract:
-        extract_zip(output_path)
+        if is_zip_extracted(output_path):
+            print(f"{filename} already extracted, skipping extraction")
+        else:
+            extract_zip(output_path)
     
     return output_path
 
@@ -104,14 +122,14 @@ def download_all_datasets(extract: bool = True) -> None:
     for dataset_name in DATA.keys():
         download_pathogenkg_dataset(dataset_name, extract, save_dir=DATA_DIR)
 
-    for source_name, url in SOURCE_DATA.items():
-        # simple download without extraction
-        filename = f"{source_name}.zip"
-        output_path = SOURCE_DATA_DIR / filename
-        if not output_path.exists():
-            download_file(url, output_path)
-        else:
-            print(f"{filename} already exists, skipping download")
+    # for source_name, url in SOURCE_DATA.items():
+    #     # simple download without extraction
+    #     filename = f"{source_name}.zip"
+    #     output_path = SOURCE_DATA_DIR / filename
+    #     if not output_path.exists():
+    #         download_file(url, output_path)
+    #     else:
+    #         print(f"{filename} already exists, skipping download")
 
 
 
