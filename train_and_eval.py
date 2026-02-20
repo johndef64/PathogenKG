@@ -737,7 +737,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
       # Eval model on entire dataset and get ranking
       rank = eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points, task=task)
       # Show better print predictions
-      top_p_num = min(5, len(rank))
+      top_p_num = min(10, len(rank))
       print(f"\n[i] Top {top_p_num} predictions:")
       for idx, pred in enumerate(rank[:top_p_num], 1):
           print(f"  {idx}. Head: {pred['head']:30s} -> Tail: {pred['tail']:20s} | Confidence: {pred['confidence']:.4f}")
