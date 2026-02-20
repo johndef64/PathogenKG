@@ -203,7 +203,7 @@ if __name__ == "__main__":
        
 # removed = 0
 # with open('dataset/vitagraph.tsv', 'r') as fin:
-#   with open('dataset/vitagraph_tmp.tsv', 'w') as fout:
+#   with open('dataset/pathogenkg_tmp.tsv', 'w') as fout:
 #     header = fin.readline()
 #     fout.write(header)
 #     for line in fin:

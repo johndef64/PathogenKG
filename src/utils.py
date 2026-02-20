@@ -1,3 +1,4 @@
+import json
 import os
 import csv
 import time
@@ -277,38 +278,105 @@ def extract_largest_connected_component(tsv_file, output_file, debug=True):
 	return res
 
 # Utils for model training 
-def load_data(edge_index_path, features_paths_per_type, quiet=True):
 
-    edge_ind = pd.read_csv(edge_index_path, sep='\t', dtype=str)
+def get_entity_type(entity):
+	"""Extract entity type from entity ID (e.g., 'Compound::DB00001' -> 'Compound').
+	If no '::' separator is found, returns 'Entity' as default type.
+	"""
+	if "::" in str(entity):
+		return str(entity).split("::")[0]
+	return "Entity"
 
-    # uniform "interaction" tpo "TARGET" for all edges where "type" is target_type
-    # tasks = ["Compound-ExtGene", "Compound-Gene"]
-    print("\n***\nuniforming interaction types...")
-    edge_ind.loc[edge_ind["type"] == "Compound-Gene", "interaction"] = "TARGET"
+def get_edge_type(head, tail):
+	"""Derive edge type from head and tail entity types.
+	E.g., 'Compound::DB00001' + 'ExtGene::Rv0001' -> 'Compound-ExtGene'
+	"""
+	return f"{get_entity_type(head)}-{get_entity_type(tail)}"
 
-    # print("check unique interaction types:", edge_ind["interaction"].unique())
-    print("check unique interaction types:", edge_ind[edge_ind["type"] == "Compound-Gene"]["interaction"].unique())
-   
-    node_features = {}
-    all_edge_ind_entities = set(edge_ind["head"]).union(set(edge_ind["tail"]))
+def load_data(edge_index_path, features_paths_per_type, quiet=True, debug=False, 
+			  head_col=None, interaction_col=None, tail_col=None):
+	"""
+	Load edge index and node features from a TSV file.
+	
+	Args:
+		edge_index_path: Path to the TSV file containing the edge index.
+		features_paths_per_type: Dictionary mapping node types to feature file paths.
+		quiet: If True, suppress output messages.
+		debug: If True, save debug files.
+		head_col: Column name for head entities (default: auto-detect from first 3 columns).
+		interaction_col: Column name for interaction/relation (default: auto-detect).
+		tail_col: Column name for tail entities (default: auto-detect).
+	
+	Returns:
+		Tuple of (edge_index DataFrame, node_features dictionary).
+		
+	Notes:
+		- The 'type' column is NOT used by networks. Edge types are derived on-the-fly
+		  from entity prefixes (e.g., "Compound::xyz" -> "Compound").
+		- Column names can be specified explicitly or auto-detected from first 3 columns.
+	"""
+	if edge_index_path.endswith(".zip"):
+		edge_ind = pd.read_csv(edge_index_path, sep='\t', dtype=str, compression='zip')
+	else:
+		edge_ind = pd.read_csv(edge_index_path, sep='\t', dtype=str)	
+	
+	# Auto-detect or use specified column names for head, interaction, tail
+	# Assume the first 3 columns are head, interaction, tail if not specified
+	columns = edge_ind.columns.tolist()
+	# dedux the datsaframe at the first three columns
+	edge_ind = edge_ind.iloc[:, :3]
+	
+	if head_col is None:
+		head_col = columns[0] if len(columns) >= 1 else 'head'
+	if interaction_col is None:
+		interaction_col = columns[1] if len(columns) >= 2 else 'interaction'
+	if tail_col is None:
+		tail_col = columns[2] if len(columns) >= 3 else 'tail'
+	
+	# Rename columns to standard names if different
+	rename_map = {}
+	if head_col != 'head':
+		rename_map[head_col] = 'head'
+	if interaction_col != 'interaction':
+		rename_map[interaction_col] = 'interaction'
+	if tail_col != 'tail':
+		rename_map[tail_col] = 'tail'
+	
+	if rename_map:
+		edge_ind = edge_ind.rename(columns=rename_map)
+		if not quiet:
+			print(f"[load_data] Renamed columns: {rename_map}")
+	
+	# Keep only the triple columns (head, interaction, tail) - ignore any 'type', 'source', etc.
+	edge_ind = edge_ind[['head', 'interaction', 'tail']].copy()
+	
+	node_features = {}
+	all_edge_ind_entities = set(edge_ind["head"]).union(set(edge_ind["tail"]))
 
-    if features_paths_per_type != None: 
-        node_features = {node_type: pd.read_csv(feature_path).drop_duplicates() for node_type, feature_path in features_paths_per_type.items()}
-        
-    entities_types = set(edge_ind["head"].apply(lambda x: x.split("::")[0])).union(set(edge_ind["tail"].apply(lambda x: x.split("::")[0]))) 
-    for node_type in entities_types:
-        if node_type not in node_features:
-            node_features[node_type] = None
-        else:
-            node_features[node_type] = node_features[node_type][node_features[node_type]["id"].isin(all_edge_ind_entities)]  ## filter the entities not present in the edge index
-            
-    triplets_count = len(edge_ind)
-    interaction_types_count = len(edge_ind.interaction.unique())
+	if features_paths_per_type != None: 
+		node_features = {node_type: pd.read_csv(feature_path).drop_duplicates() for node_type, feature_path in features_paths_per_type.items()}
+		
+	entities_types = set(edge_ind["head"].apply(lambda x: x.split("::")[0])).union(set(edge_ind["tail"].apply(lambda x: x.split("::")[0]))) 
+	for node_type in entities_types:
+		if node_type not in node_features:
+			node_features[node_type] = None
+		else:
+			node_features[node_type] = node_features[node_type][node_features[node_type]["id"].isin(all_edge_ind_entities)]  ## filter the entities not present in the edge index
+			
+	triplets_count = len(edge_ind)
+	# print(f"Tripelt Count: {triplets_count}")
+	interaction_types_count = edge_ind["interaction"].nunique()
 
-    if not quiet:
-        print(colored(f'[loaded edge index] triplets count: {triplets_count} interaction types count: {interaction_types_count}', 'green'))
+	if not quiet:
+		print(colored(f'[loaded edge index] triplets count: {triplets_count} interaction types count: {interaction_types_count}', 'green'))
+	if debug:
+		os.makedirs("debug", exist_ok=True)
+		edge_ind.to_csv("debug/edge_index.csv", index=False)
+		# save node type in json
+		with open("debug/node_features.json", "w") as f:
+			json.dump({node_type: features_path for node_type, features_path in features_paths_per_type.items()}, f, indent=4)
 
-    return edge_ind, node_features
+	return edge_ind, node_features
 
 def entities2id(edge_index, node_features_per_type):
 	# create a dictionary that maps the entities to an integer id
@@ -343,7 +411,7 @@ def entities2id_offset(edge_index, node_features_per_type, quiet=False):
 	
 	if not quiet:
 		for node_type, nodes in all_nodes_per_type.items():
-			print(colored(f'    [{node_type}] count: {len(nodes)}', 'green'))
+			print(colored(f'	[{node_type}] count: {len(nodes)}', 'green'))
 
 	offset = 0
 	for node_type, features in node_features_per_type.items():
@@ -414,8 +482,70 @@ def add_self_loops(train_index, num_entities, num_relations):
 	train_index_self_loops = torch.cat([train_index, self_loops], dim=0)
 	return train_index_self_loops
 
-def set_target_label(edge_ind, target_edges):
-	edge_ind["label"] = edge_ind["type"].apply(lambda x: x in target_edges)
+def set_target_label(edge_ind, target_edges, debug=False):
+	"""
+	Label edges as target (1) or non-target (0) based on task specification.
+	
+	The task can be specified as:
+	  1. An edge type derived from entity prefixes (e.g., 'Compound-ExtGene')
+	  2. An interaction name from the dataset (e.g., 'TARGET', 'GENE_BIND', 'CMP_BIND')
+	
+	Both are matched case-insensitively and with underscore/space normalization.
+	
+	Args:
+		edge_ind: DataFrame with 'head', 'interaction', 'tail' columns.
+		target_edges: List of tasks (edge types or interaction names).
+		debug: If True, save debug files.
+	
+	Returns:
+		DataFrame with added 'label' column (1 for target, 0 otherwise).
+	"""
+	def normalize(s):
+		"""Normalize string for matching: lowercase, replace spaces with underscores"""
+		return str(s).lower().replace(" ", "_")
+	
+	# Build normalized set of targets (including reversed edge types)
+	target_set_normalized = set()
+	for t in target_edges:
+		target_set_normalized.add(normalize(t))
+		# Add reversed version for edge types: 'A-B' -> 'B-A'
+		if '-' in t:
+			parts = t.split('-')
+			if len(parts) == 2:
+				target_set_normalized.add(normalize(f"{parts[1]}-{parts[0]}"))
+	
+	# Derive edge type from entity prefixes
+	edge_ind["_edge_type"] = edge_ind.apply(
+		lambda row: get_edge_type(row['head'], row['tail']),
+		axis=1
+	)
+	
+	# Normalize interaction column for matching
+	edge_ind["_interaction_norm"] = edge_ind["interaction"].apply(normalize)
+	edge_ind["_edge_type_norm"] = edge_ind["_edge_type"].apply(normalize)
+	
+	# Match against either edge type OR interaction name
+	edge_ind["label"] = (
+		edge_ind["_edge_type_norm"].isin(target_set_normalized) |
+		edge_ind["_interaction_norm"].isin(target_set_normalized)
+	).astype(int)
+	
+	# Show available options for debugging
+	available_edge_types = edge_ind["_edge_type"].unique().tolist()
+	available_interactions = edge_ind["interaction"].unique().tolist()
+	num_target = edge_ind["label"].sum()
+	
+	print(f"[set_target_label] Looking for: {target_edges}")
+	print(f"[set_target_label] Available edge types: {available_edge_types}")
+	print(f"[set_target_label] Available interactions: {available_interactions}")
+	print(f"[set_target_label] Found {num_target} target edges out of {len(edge_ind)} total")
+	
+	# Remove temporary columns
+	edge_ind = edge_ind.drop(columns=["_edge_type", "_interaction_norm", "_edge_type_norm"])
+	
+	if debug:
+		os.makedirs("debug", exist_ok=True)
+		edge_ind.to_csv("debug/edge_index_with_labels.csv", index=False)
 	return edge_ind
 
 def select_target_triplets(edge_index):
@@ -486,7 +616,7 @@ def create_hetero_data(indexed_edge_ind, node_features_per_type, rel2id, verbose
 	for node_type, features in node_features_per_type.items():
 		data[f"{node_type}"].x = torch.tensor(features, dtype=torch.float).contiguous()
 		total_nodes += len(features)
-	all_interaction_per_type= indexed_edge_ind[["interaction","type"]].drop_duplicates().values
+	all_interaction_per_type = indexed_edge_ind[["interaction","type"]].drop_duplicates().values
 	for interaction, entities in all_interaction_per_type:
 		edge_interaction = indexed_edge_ind.loc[(indexed_edge_ind["interaction"] == interaction) & (indexed_edge_ind["type"]==entities)]
 		entity_types = entities.split(" - ")  ######## "-" or " - " depending on the dataset
@@ -507,7 +637,7 @@ def data_split_and_negative_sampling( data, target_edges, rev_target, val_ratio=
 	)
 	return transform_split(data)
 
-def get_all_triplets(data, rel2id):    
+def get_all_triplets(data, rel2id):	
 	head_tail = torch.cat(list(data.edge_index_dict.values()), dim=1)
 	# add the relation id to the triplets TO the last dimension
 	rel_ids = []

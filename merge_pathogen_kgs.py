@@ -20,6 +20,7 @@ available_targets = list(set(tax_ids) )
 # available_targets = minimal_available_targets 
 
 file_path = f'dataset/pathogenkg/'
+output_path = "dataset/"
 
 def concatenate_all_targets(targets, out_path):
     """Concatenate all target PathogenKG TSV files (same column structure).
@@ -84,7 +85,7 @@ if __name__ == '__main__':
                         help='Output filename')
     args = parser.parse_args()
     
-    out_path = os.path.join(file_path, args.output)
+    out_path = os.path.join(output_path, args.output)
     
     logging.info(f'Merging all {len(available_targets)} targets')
     logging.info(f'Output: {out_path}')

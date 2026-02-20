@@ -40,6 +40,21 @@
 # # Quiet mode (minimal output)
 # python train_and_eval.py --quiet --runs 5
 
+"""
+In this new version of train and eval and network.utils (v2),
+you need to adapt the loading and use of the dataset for datasets formatted as triples:
+which can be 
+head, interaction, tail
+but the column names do not matter because they are always triples. 
+If the names are different, fix them when you load the dataset in load_data. Just specify which columns to take as head, interaction and tail, and then the rest of the code will work the same.
+
+However, please note that this version also uses a 'type' column. I do not understand the purpose of this, and the scripts must be adapted for use with simple triple datasets without this 'type' column, and the networks must work in the same way.
+
+Make these changes so that the networks work correctly.
+
+"""
+
+
 
 #%%
 import warnings
@@ -65,10 +80,13 @@ from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
 BASE_SEED = 42
 
 # Single, pre-merged dataset ready for training.
-DEFAULT_TRAIN_TSV = os.path.join('dataset', 'pathogenkg', 'PathogenKG_merged.tsv')
+dataset = 'PathogenKG_merged.tsv'
+dataset = 'PathogenKG_n19.tsv'
+dataset = 'PathogenKG_n19.tsv'
+DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
+DEBUG = False
 
 def _resolve_dataset_path(tsv_path: str) -> str:
   resolved = os.path.normpath(tsv_path)
@@ -144,12 +162,20 @@ def get_dataset_pretrain(tsv_path, quiet):
           train_val_test_triplets, edge_index, ent2id, relation2id)
 
 def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversample_rate, undersample_rate):
-  edge_index, node_features_per_type = load_data(tsv_path, {}, quiet)
+  edge_index, node_features_per_type = load_data(tsv_path, {}, quiet, 
+                                                #  debug=DEBUG
+                                                 )
+  
+  # Label target edges BEFORE converting to IDs (need string entity names to derive edge types)
+  edge_index = set_target_label(edge_index, [ x for x in task.split(',')] )
+  
   ent2id, all_nodes_per_type  = entities2id_offset(edge_index, node_features_per_type, quiet)
   relation2id                 = rel2id_offset(edge_index)
   indexed_edge_index          = edge_ind_to_id(edge_index, ent2id, relation2id)
   flattened_features_per_type = entities_features_flattening(node_features_per_type, all_nodes_per_type)
-  indexed_edge_index          = set_target_label(indexed_edge_index, [ x for x in task.split(',')])
+  
+  # Labels are already in edge_index, copy to indexed version
+  indexed_edge_index["label"] = edge_index["label"].values
 
   non_target_triplets, target_triplets        = select_target_triplets(indexed_edge_index)
   train_triplets, val_triplets, test_triplets = triple_sampling(
@@ -208,7 +234,18 @@ def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversam
 def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations):
   with open(models_params_path, 'r') as f:
     models_params = json.load(f)
-  model_params = models_params[task][model_name]
+  
+  # Use task params if available, otherwise use "default" or fall back to first available task
+  if task in models_params:
+    model_params = models_params[task][model_name]
+  elif "default" in models_params:
+    print(f"[get_model] Task '{task}' not found in params, using 'default'")
+    model_params = models_params["default"][model_name]
+  else:
+    # Fall back to first available task (e.g., Compound-ExtGene)
+    fallback_task = list(models_params.keys())[0]
+    print(f"[get_model] Task '{task}' not found in params, using '{fallback_task}' params")
+    model_params = models_params[fallback_task][model_name]
 
   conv_hidden_channels = {f'layer_{x}':model_params[f'layer_{x}']  for x in range(model_params['conv_layer_num'])} 
 
@@ -372,14 +409,45 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
   return metrics
 
 
+# Import the helper function from utils_v2
+from src.utils_v2 import get_edge_type
 
-def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points=None):
+def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points=None, task=None):
     """
-    Rank compounds by prediction confidence for novel ExtGene interactions.
+    Rank entities by prediction confidence for novel interactions of a given task type.
+    
+    Args:
+        model: The trained model.
+        flattened_features_per_type: Node features by type.
+        train_index: Training edge index.
+        edge_index: Original edge index DataFrame with 'head', 'interaction', 'tail' columns.
+        ent2id: Entity to ID mapping.
+        relation2id: Relation to ID mapping.
+        change_points: Change points for RGAT (optional).
+        task: The task/edge type to evaluate (e.g., 'Compound-ExtGene'). 
+              If None, uses args.task.
+              
+    Note:
+        Edge types are derived on-the-fly from entity prefixes (e.g., 'Compound::x' -> 'Compound').
+        No 'type' column is needed in the edge_index DataFrame.
     """
     model.eval()
-    # add some print statements
-    print("[i] Evaluating model for novel Compound-Gene interactions...")
+    
+    # Use provided task or fall back to args.task
+    eval_task = task if task is not None else args.task
+    
+    def normalize(s):
+        """Normalize string for matching: lowercase, replace spaces with underscores"""
+        return str(s).lower().replace(" ", "_")
+    
+    # Build normalized set of targets (including reversed edge types)
+    eval_task_normalized = {normalize(eval_task)}
+    if '-' in eval_task:
+        parts = eval_task.split('-')
+        if len(parts) == 2:
+            eval_task_normalized.add(normalize(f"{parts[1]}-{parts[0]}"))
+    
+    print(f"[i] Evaluating model for novel {eval_task} interactions...")
     with torch.no_grad():
         # Get embeddings from the model
         if change_points != None:
@@ -387,37 +455,56 @@ def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, re
         else:
             out = model(flattened_features_per_type, train_index)
         
-        # Get all possible Compound-ExtGene pairs from the original edge_index
-        compound_extgene_edges = edge_index[edge_index['type'] == args.task]
+        # Filter edges by task - match either edge type OR interaction name
+        task_mask = edge_index.apply(
+            lambda row: (
+                normalize(get_edge_type(row['head'], row['tail'])) in eval_task_normalized or
+                normalize(row['interaction']) in eval_task_normalized
+            ),
+            axis=1
+        )
+        task_edges = edge_index[task_mask]
         
-        # Get unique compounds and extgenes
-        compounds = set(compound_extgene_edges['head'].unique())
-        extgenes = set(compound_extgene_edges['tail'].unique())
+        if len(task_edges) == 0:
+            # Show available options for debugging
+            available_types = edge_index.apply(
+                lambda row: get_edge_type(row['head'], row['tail']), axis=1
+            ).unique().tolist()
+            available_interactions = edge_index['interaction'].unique().tolist()
+            print(f"[WARNING] No edges found for task '{eval_task}'.")
+            print(f"  Available edge types: {available_types}")
+            print(f"  Available interactions: {available_interactions}")
+            return []
         
-        # use compound_extgene_edges to get "interaction"
-
-        # Get the relation ID for Compound-ExtGene
-        realtion_col_name = "TARGET"
-        # # derive the realtion name from the dataset 
-        # if 'vitaext' in args.tsv.split('/')[-1].split('.')[0]:
-        #   realtion_col_name = "CMP_BIND"
-        # # must edit drkg relation name bbefore the training 
-        # # replace at the column "interaction" any value with "CMP_BIND" where "type" is args.task
-        # elif 'drkg' in args.tsv.split('/')[-1].split('.')[0]:
-        #   realtion_col_name = "bioarx::DrugVirGen:Compound:Gene"
-        # else:
-        #   realtion_col_name = realtion_col_name
-
-        compound_extgene_rel_id = relation2id[realtion_col_name]
+        # Get unique head and tail entities for this task
+        heads = set(task_edges['head'].unique())
+        tails = set(task_edges['tail'].unique())
         
-        # Generate all possible Compound-ExtGene triplets
+        # Determine the relation name dynamically from the dataset
+        # Use the most common interaction type for this edge type
+        relation_name = task_edges['interaction'].mode().iloc[0] if len(task_edges) > 0 else "TARGET"
+        relation_name = relation_name.replace(" ", "_")  # Normalize whitespace
+        
+        if relation_name not in relation2id:
+            print(f"[WARNING] Relation '{relation_name}' not found in relation2id. Available: {list(relation2id.keys())}")
+            # Try to find a matching relation
+            possible_relations = [r for r in relation2id.keys() if not r.startswith('rev_')]
+            if possible_relations:
+                relation_name = possible_relations[0]
+                print(f"[i] Using fallback relation: {relation_name}")
+            else:
+                return []
+        
+        rel_id = relation2id[relation_name]
+        
+        # Generate all possible triplets for this task
         all_triplets = []
-        for compound in compounds:
-            for extgene in extgenes:
-                if compound in ent2id and extgene in ent2id:
-                    compound_id = ent2id[compound]
-                    extgene_id = ent2id[extgene]
-                    all_triplets.append([compound_id, compound_extgene_rel_id, extgene_id])
+        for head_entity in heads:
+            for tail_entity in tails:
+                if head_entity in ent2id and tail_entity in ent2id:
+                    head_id = ent2id[head_entity]
+                    tail_id = ent2id[tail_entity]
+                    all_triplets.append([head_id, rel_id, tail_id])
         
         if not all_triplets:
             return []
@@ -433,17 +520,17 @@ def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, re
         id2ent = {v: k for k, v in ent2id.items()}
         
         for score, triplet in zip(scores, all_triplets):
-            compound_id = triplet[0].item()
-            extgene_id = triplet[2].item()
+            head_id = triplet[0].item()
+            tail_id = triplet[2].item()
             
-            compound = id2ent.get(compound_id, f"unknown_compound_{compound_id}")
-            extgene = id2ent.get(extgene_id, f"unknown_gene_{extgene_id}")
+            head = id2ent.get(head_id, f"unknown_head_{head_id}")
+            tail = id2ent.get(tail_id, f"unknown_tail_{tail_id}")
             
             ranked_predictions.append({
-                'compound': compound,
-                'extgene': extgene,
+                'head': head,
+                'tail': tail,
                 'confidence': score.item(),
-                'relation': args.task
+                'relation': eval_task
             })
         
         # Sort by confidence (descending)
@@ -648,11 +735,12 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
 
       print(f"[i] Evaluating model on entire dataset for ranking...")
       # Eval model on entire dataset and get ranking
-      rank = eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points)
+      rank = eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points, task=task)
       # Show better print predictions
-      print(f"\n[i] Top 3 predictions:")
-      for idx, pred in enumerate(rank[:3], 1):
-          print(f"  {idx}. Compound: {pred['compound']:30s} -> Gene: {pred['extgene']:20s} | Confidence: {pred['confidence']:.4f}")
+      top_p_num = min(5, len(rank))
+      print(f"\n[i] Top {top_p_num} predictions:")
+      for idx, pred in enumerate(rank[:top_p_num], 1):
+          print(f"  {idx}. Head: {pred['head']:30s} -> Tail: {pred['tail']:20s} | Confidence: {pred['confidence']:.4f}")
       # Save ranking to JSON
       ranking_save_path = run_model_save_path.replace(".pt", "_ranking.json")
       with open(ranking_save_path, "w") as f:
@@ -707,7 +795,10 @@ if __name__ == '__main__':
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
   
   # add task as argument
-  parser.add_argument('--task', type=str, default='Compound-ExtGene', help='Task to perform.')
+  parser.add_argument('--task', type=str, 
+                      #default='Compound-ExtGene', 
+                      default='TARGET', 
+                      help='Task to perform.')
 
 
 
@@ -766,6 +857,9 @@ if __name__ == '__main__':
 
   python train_and_eval.py --model compgcn --pretrain_epochs 100 --freeze_base --epochs 200
 
+  -- on DRKG (simple triplets):
+  python train_and_eval.py --model compgcn --epochs 100 --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
+  
 
   -- on DRKG dataset:
   python train_and_eval.py --model compgcn --epochs 300 --task Compound-Gene --tsv dataset/drkg/drkg.tsv
