@@ -410,7 +410,7 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
 
 
 # Import the helper function from utils_v2
-from src.utils_v2 import get_edge_type
+from src.utils import get_edge_type
 
 def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points=None, task=None):
     """

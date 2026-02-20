@@ -24,7 +24,7 @@ if torch-sparse installation fails, try installing it separately:
 pip uninstall -y torch torchvision torchaudio
 pip install --index-url https://download.pytorch.org/whl/cu128 torch==2.7.1 torchvision torchaudio
 pip install --no-cache-dir --only-binary=:all: \
-  pyg_lib torch-scatter torch-sparse torch-cluster torch-spline-conv \
+  pyg_lib torch-geometric torch-scatter torch-sparse torch-cluster torch-spline-conv termcolor torcheval \
   -f https://data.pyg.org/whl/torch-2.7.1+cu128.html
 ```
 
