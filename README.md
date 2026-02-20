@@ -39,7 +39,7 @@ pip install --no-cache-dir --only-binary=:all: \
 - Executes `build_pathogenkg.py` on all available pathogen datasets to generate organism-specific knowledge graphs
 - Produces PathogenKG graphs for each pathogen organism
 
-**`merge_all_pathoges.py`**
+**`merge_pathogen_kgs.py`**
 - Merges multiple PathogenKG datasets together (pathogen-only, without human KG)
 - Creates integrated multi-organism knowledge graphs for training
 

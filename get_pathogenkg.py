@@ -24,15 +24,22 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
+root = "https://huggingface.co/datasets/johndef64/PathogenKG/resolve/main/"
 
+DATA = {
+    "drkg_extended": f"{root}drkg_extended.zip?download=true",
+    "pathogens": f"{root}pathogenkg_pathogens_v2.zip?download=true"
+}
 DATASETS = {
-    "drkg_extended": "https://huggingface.co/datasets/johndef64/PathogenKG/resolve/main/drkg_extended.zip?download=true",
-    "pathogens": "https://huggingface.co/datasets/johndef64/PathogenKG/resolve/main/pathogenkg_pathogens.zip?download=true",    
+    "pathogenkg_19":f"{root}PathogenKG_n19.tsv.zip?download=true",
+    "pathogenkg_74":f"{root}PathogenKG_n74.tsv.zip?download=true",
 }
 
-SOURCE_DATA = {"source_datasets": "https://huggingface.co/datasets/johndef64/PathogenKG/resolve/main/source_datasets.zip?download=true"}
+
+SOURCE_DATA = {"source_datasets": f"{root}source_datasets.zip?download=true"}
 
 DATA_DIR = Path("dataset/pathogenkg")
+DATASET_DIR = Path("dataset")
 SOURCE_DATA_DIR =  Path("dataset")
 
 
@@ -56,7 +63,7 @@ def extract_zip(zip_path: Path) -> None:
     print(f"Extracted {zip_path.name}")
 
 
-def download_pathogenkg_dataset(dataset_name: str, extract: bool = True) -> Path:
+def download_pathogenkg_dataset(dataset_name: str, extract: bool = True, save_dir: Path = DATA_DIR) -> Path:
     """
     Download a specific  dataset.
     
@@ -71,12 +78,12 @@ def download_pathogenkg_dataset(dataset_name: str, extract: bool = True) -> Path
         raise ValueError(f"Unknown dataset: {dataset_name}. Available: {list(DATASETS.keys())}")
     
     # Create directory if it doesn't exist
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    save_dir.mkdir(parents=True, exist_ok=True)
     
     # Download file
     url = DATASETS[dataset_name]
     filename = f"{dataset_name}.zip"
-    output_path = DATA_DIR / filename
+    output_path = save_dir / filename
     
     if not output_path.exists():
         download_file(url, output_path)
@@ -93,7 +100,9 @@ def download_pathogenkg_dataset(dataset_name: str, extract: bool = True) -> Path
 def download_all_datasets(extract: bool = True) -> None:
     """Download all available PathogenKG datasets."""
     for dataset_name in DATASETS.keys():
-        download_pathogenkg_dataset(dataset_name, extract)
+        download_pathogenkg_dataset(dataset_name, extract, save_dir=DATASET_DIR)
+    for dataset_name in DATA.keys():
+        download_pathogenkg_dataset(dataset_name, extract, save_dir=DATA_DIR)
 
     for source_name, url in SOURCE_DATA.items():
         # simple download without extraction
