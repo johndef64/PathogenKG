@@ -30,7 +30,7 @@ from tqdm.auto import tqdm
 import torch.nn.functional as F
 from torcheval.metrics.functional import binary_auprc, binary_auroc
 
-from src.utils_v2 import load_data, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
+from src.utils import load_data, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
                       set_target_label, triple_sampling, graph_to_undirect, negative_sampling, add_self_loops, evaluation_metrics, get_edge_type
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
@@ -83,7 +83,7 @@ def get_dataset_for_eval(tsv_path, task, validation_size, test_size, quiet, seed
   indexed_edge_index["label"] = edge_index["label"].values
   
   # Separa target e non-target
-  from src.utils_v2 import select_target_triplets
+  from src.utils import select_target_triplets
   non_target_triplets, target_triplets = select_target_triplets(indexed_edge_index)
   train_triplets, val_triplets, test_triplets = triple_sampling(
     target_triplets.loc[:,["head","interaction","tail"]].values,
@@ -246,7 +246,7 @@ def test(model, reg_param, x_dict, index, target_triplets, target_labels, train_
 
 
 # Import the helper function from utils_v2
-from src.utils_v2 import get_edge_type
+from src.utils import get_edge_type
 
 def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points=None, task=None):
     """
@@ -528,9 +528,11 @@ Esempi:
   python model_eval.py --model_path models/myfolder/compgcn.pt --model compgcn --task TARGET --ranking_only
     """
   )
+  import glob
+  test_path = glob.glob(os.path.join('models', '*', '*.pt')) 
   
   # Argomenti principali
-  parser.add_argument('--model_path', type=str, required=True,
+  parser.add_argument('--model_path', type=str, default=test_path[0] if test_path else None,
                       help='Path al file .pt del modello da valutare')
   parser.add_argument('-m', '--model', type=str, default='compgcn', 
                       choices=['rgcn', 'rgat', 'compgcn'],
