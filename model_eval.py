@@ -1,4 +1,4 @@
-﻿# model_eval.py
+﻿﻿# model_eval.py
 """
 Script per VALUTARE modelli già addestrati.
 Non esegue alcun training, carica solamente un modello salvato e ne calcola le metriche.
@@ -9,6 +9,8 @@ Esempi d'uso:
 
   # Specifica un dataset diverso
   python model_eval.py --model_path models/myfolder/rgcn_run0.pt --model rgcn --tsv dataset/drkg/drkg_reduced.tsv --task Compound-Gene
+
+python model_eval.py --model_path models/cmp_bind_drkg_reduced_20260223_180858/rgcn_run0.pt --model rgcn --tsv dataset/drkg/drkg_reduced.zip --task CMP_BIND
 
   # Esegui solo ranking (senza test metrics)  
   python model_eval.py --model_path models/myfolder/compgcn_run0.pt --model compgcn --task TARGET --ranking_only
@@ -245,7 +247,7 @@ def test(model, reg_param, x_dict, index, target_triplets, target_labels, train_
   return metrics
 
 
-# Import the helper function from utils_v2
+# Import the helper function from utils
 from src.utils import get_edge_type
 
 def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, relation2id, change_points=None, task=None):
@@ -528,11 +530,9 @@ Esempi:
   python model_eval.py --model_path models/myfolder/compgcn.pt --model compgcn --task TARGET --ranking_only
     """
   )
-  import glob
-  test_path = glob.glob(os.path.join('models', '*', '*.pt')) 
   
   # Argomenti principali
-  parser.add_argument('--model_path', type=str, default=test_path[0] if test_path else None,
+  parser.add_argument('--model_path', type=str, required=True,
                       help='Path al file .pt del modello da valutare')
   parser.add_argument('-m', '--model', type=str, default='compgcn', 
                       choices=['rgcn', 'rgat', 'compgcn'],
