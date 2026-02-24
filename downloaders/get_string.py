@@ -1,4 +1,6 @@
 #%%
+import glob
+
 import requests
 import os
 from tqdm import tqdm
@@ -12,10 +14,31 @@ tax_ids_prev =[9606, 83332, 224308, 208964, 99287, 71421, 243230,
 
 # load all taxa ids (version 2)
 import pandas as pd
-taxa_df = pd.read_csv("DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
-tax_ids = taxa_df.taxonomy_id.to_list()
+taxa_df = pd.read_csv("DRUGBANK/taxons/drugbank_string_taxa_merged_string_with_pathogen_status.csv")
+pathogen_taxa = taxa_df[taxa_df.human_pathogen != 'No']
+non_pathogen_taxa = taxa_df[taxa_df.human_pathogen == 'No']
+tax_ids = pathogen_taxa.taxonomy_id.to_list()
+print(f"Preparing download for {len(tax_ids)} pathogen taxa")
 # tax_ids = list(set(tax_ids) - set(tax_ids_prev))
 
+#%%
+
+# get all downloaded taxa id from files.gz in dataset/STRING  
+# split by "." and take first part
+import glob
+
+downloaded_taxa = []
+print(os.getcwd())
+for file in glob.glob("STRING/*.txt.gz"):
+    filename = os.path.basename(file)
+    tax_id = filename.split(".")[0]
+    downloaded_taxa.append(tax_id)
+    downloaded_taxa = list(set(downloaded_taxa))
+print(f"Already downloaded taxa IDs len {len(downloaded_taxa)}")
+
+# remove downloadded from tax_ids
+tax_ids = [tax_id for tax_id in tax_ids if str(tax_id) not in downloaded_taxa]
+print(f"Taxa IDs to download len {len(tax_ids)}")
 #%%
 
 # Lista dei file da scaricare per ogni tax_id
