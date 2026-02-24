@@ -1,18 +1,8 @@
-﻿# train.py
-################# SHHHH MAN-AT-WORK ####################
-#           _
-#     _____|~~\_____      _____________
-# _-~               \    |    \
-# _-    | )     \    |__/   \   \
-# _-         )   |   |  |     \  \
-# _-    | )     /    |--|      |  |
-# __-_______________ /__/_______|  |_________
-# (                |----         |  |
-# `---------------'--\\\\      .`--'
-#                             `||||
+﻿################# TRAIN AND EVAL ####################
 
-# # Specify a different target
-# python train_and_eval.py --target 224308
+
+# # Specify a different TASK (edge type) to train on
+# python train_and_eval.py --task CMP_BIND
 
 # # Use a different model
 # python train_and_eval.py --model rgcn
@@ -34,8 +24,8 @@
 # # With pretraining and frozen base layers
 # python train_and_eval.py --model rgat --pretrain_epochs 100 --freeze_base --epochs 200
 
-# # Training on target graph alone with custom sampling
-# python train_and_eval.py --alone --oversample_rate 10 --undersample_rate 0.3 --negative_rate 3
+# # Training on target graph with custom sampling
+# python train_and_eval.py --oversample_rate 10 --undersample_rate 0.3 --negative_rate 3
 
 # # Quiet mode (minimal output)
 # python train_and_eval.py --quiet --runs 5
@@ -50,7 +40,7 @@ If the names are different, fix them when you load the dataset in load_data. Jus
 
 However, please note that this version also uses a 'type' column. I do not understand the purpose of this, and the scripts must be adapted for use with simple triple datasets without this 'type' column, and the networks must work in the same way.
 
-Make these changes so that the networks work correctly.
+I made these changes so that the networks work correctly.
 
 """
 
@@ -779,8 +769,6 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Ablation study on Vitagraph generation process.')
   # add 
 
-  parser.add_argument('-t', '--target', type=str, default=None,
-                      help='[DEPRECATED] Ignored. Training always uses the merged TSV (see --tsv).')
   parser.add_argument('--tsv', type=str, default=DEFAULT_TRAIN_TSV,
                       help=f"Path to the training TSV (default: {DEFAULT_TRAIN_TSV})")
   parser.add_argument('-m', '--model', type=str, default='compgcn', choices=['rgcn', 'rgat', 'compgcn'], help='Model to use for the ablation study.')
@@ -792,8 +780,6 @@ if __name__ == '__main__':
   parser.add_argument('--quiet', action='store_true', help='If set, the ablation study will print debug output.')
   parser.add_argument('--evaluate_every', type=int, default=5, help='Evaluate every n epochs.')
   parser.add_argument('--negative_rate', type=float, default=1, help='Negative sampling rate for the ablation study.')
-  parser.add_argument('-a', '--alone', action='store_true',
-                      help='[DEPRECATED] Ignored. Dataset selection is controlled by --tsv.')
   parser.add_argument('--oversample_rate', type=int, default=5, help='how many times to repeat the positive training triplets')
   parser.add_argument('--undersample_rate', type=float, default=0.5, help='fraction [0,1] of non-target triplets to keep in the training graph')
   parser.add_argument('--pretrain_epochs', type=int, default=0, help='Number of epochs for multi-relational pretraining')
@@ -850,10 +836,7 @@ if __name__ == '__main__':
 
 
   if not quiet: print(f'Running training of model: {model}, runs: {runs} | device: {device}')
-  if (args.target is not None) and (not quiet):
-    print('[i] Note: --target is deprecated and ignored (using merged TSV).')
-  if args.alone and (not quiet):
-    print('[i] Note: --alone is deprecated and ignored (using merged TSV).')
+
 
 
   """

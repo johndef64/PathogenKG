@@ -12,9 +12,31 @@ minimal_available_targets = [
     '85962', '171101', '243277', '294', '1314', '272631',
     '212717', '36329', '237561', '6183', '5664', '185431', '330879'
 ]
+# convert to integer taxonomy IDs
+minimal_available_targets_int = [int(tax_id) for tax_id in minimal_available_targets]
+
 
 import pandas as pd
-taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
+taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_string_taxa_merged_string_with_pathogen_status.csv")
+
+taxa_df[taxa_df['STRING_type'] == "core"].domain.value_counts()
+taxa_df[taxa_df['STRING_type'] == "periphery"].domain.value_counts()
+# taxa_df
+
+
+#%%
+taxa_df.human_pathogen.value_counts()
+
+pathogen_taxa = taxa_df[taxa_df.human_pathogen != 'No']
+non_pathogen_taxa = taxa_df[taxa_df.human_pathogen == 'No']
+pathogen_taxa.STRING_type.value_counts() 
+#%%
+non_pathogen_taxa.STRING_type.value_counts() 
+#%%
+taxa_df[taxa_df['taxonomy_id'].isin(minimal_available_targets_int)].domain.value_counts()
+
+#%%
+
 tax_ids = taxa_df.taxonomy_id.astype(str).to_list()
 available_targets = list(set(tax_ids) )
 # available_targets = minimal_available_targets 
