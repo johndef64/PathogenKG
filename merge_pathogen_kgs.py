@@ -2,6 +2,7 @@
 import os
 import logging
 import argparse
+import zipfile
 from time import time
 from collections import defaultdict
 import pandas as pd
@@ -23,7 +24,6 @@ taxa_df[taxa_df['STRING_type'] == "core"].domain.value_counts()
 taxa_df[taxa_df['STRING_type'] == "periphery"].domain.value_counts()
 # taxa_df
 
-
 #%%
 taxa_df.human_pathogen.value_counts()
 
@@ -37,9 +37,12 @@ taxa_df[taxa_df['taxonomy_id'].isin(minimal_available_targets_int)].domain.value
 
 #%%
 
-tax_ids = taxa_df.taxonomy_id.astype(str).to_list()
+tax_ids = pathogen_taxa.taxonomy_id.astype(str).to_list()
 available_targets = list(set(tax_ids) )
 # available_targets = minimal_available_targets 
+
+# ho fatto una modifica titti i tsv ora sono in pathogenkg_all_pathogens.zip
+# devi caricare i tsv da questo zip e non da i tsv liberi
 
 file_path = f'dataset/pathogenkg/'
 output_path = "dataset/"
@@ -55,39 +58,71 @@ def concatenate_all_targets(targets, out_path):
 
     lines_per_target = defaultdict(int)
     dfs = []
+    zip_path = os.path.join(file_path, 'pathogenkg_all_pathogens.zip')
+    use_zip_source = os.path.exists(zip_path)
+    zip_ref = None
+    zip_members = {}
 
     logging.info(f'{logging_header} Concatenating knowledge graphs from {len(targets)} targets...')
+    if use_zip_source:
+        zip_ref = zipfile.ZipFile(zip_path, 'r')
+        zip_members = {
+            os.path.basename(member): member
+            for member in zip_ref.namelist()
+            if member.endswith('.tsv')
+        }
+        logging.info(f'{logging_header} Loading input files from ZIP: {zip_path}')
+    else:
+        logging.info(f'{logging_header} ZIP not found, loading input files from directory: {file_path}')
 
-    for target in targets:
-        target_path = os.path.join(file_path, f'PathogenKG_{target}.tsv')
-        if not os.path.exists(target_path):
-            logging.warning(f'{logging_header} Skipping missing file: {target_path}')
-            continue
+    try:
+        for target in targets:
+            target_filename = f'PathogenKG_{target}.tsv'
+            target_path = os.path.join(file_path, target_filename)
 
-        try:
-            df = pd.read_csv(target_path, sep='\t', dtype=str)
-        except Exception as exc:
-            logging.warning(f'{logging_header} Failed reading {target_path}: {exc}')
-            continue
-
-        if df.empty:
-            lines_per_target[target] = 0
-            logging.warning(f'{logging_header} Empty file (no rows): {target_path}')
-            continue
-
-        if list(df.columns) != expected_cols:
-            if all(col in df.columns for col in expected_cols):
-                df = df[expected_cols]
+            if use_zip_source:
+                zip_member = zip_members.get(target_filename)
+                if zip_member is None:
+                    logging.warning(f'{logging_header} Skipping missing file in ZIP: {target_filename}')
+                    continue
+                try:
+                    with zip_ref.open(zip_member) as fin:
+                        df = pd.read_csv(fin, sep='\t', dtype=str)
+                except Exception as exc:
+                    logging.warning(f'{logging_header} Failed reading {target_filename} from ZIP: {exc}')
+                    continue
             else:
-                logging.warning(
-                    f"{logging_header} Unexpected columns in {target_path}: {list(df.columns)} (expected {expected_cols})"
-                )
+                if not os.path.exists(target_path):
+                    logging.warning(f'{logging_header} Skipping missing file: {target_path}')
+                    continue
+
+                try:
+                    df = pd.read_csv(target_path, sep='\t', dtype=str)
+                except Exception as exc:
+                    logging.warning(f'{logging_header} Failed reading {target_path}: {exc}')
+                    continue
+
+            if df.empty:
+                lines_per_target[target] = 0
+                logging.warning(f'{logging_header} Empty file (no rows): {target_filename}')
                 continue
 
-        df = df.dropna(how='all')
-        lines_per_target[target] = len(df)
-        logging.info(f'{logging_header} Target {target}: {len(df)} lines appended')
-        dfs.append(df)
+            if list(df.columns) != expected_cols:
+                if all(col in df.columns for col in expected_cols):
+                    df = df[expected_cols]
+                else:
+                    logging.warning(
+                        f"{logging_header} Unexpected columns in {target_filename}: {list(df.columns)} (expected {expected_cols})"
+                    )
+                    continue
+
+            df = df.dropna(how='all')
+            lines_per_target[target] = len(df)
+            logging.info(f'{logging_header} Target {target}: {len(df)} lines appended')
+            dfs.append(df)
+    finally:
+        if zip_ref is not None:
+            zip_ref.close()
 
     out_df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=expected_cols)
     out_path = out_path.replace('.tsv', f'.tsv.zip')

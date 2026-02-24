@@ -1,4 +1,5 @@
-﻿import os
+﻿#%%
+import os
 import csv
 import gzip
 import logging
@@ -19,8 +20,30 @@ AVAILABLE_TARGETS_v1 = [
 	'212717', '36329', '237561', '6183', '5664', '185431', '330879'
 ]
 import pandas as pd
-taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv")
-tax_ids = taxa_df.taxonomy_id.astype(str).to_list()
+taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_string_taxa_merged_string_with_pathogen_status.csv")
+pathogen_taxa = taxa_df[taxa_df.human_pathogen != 'No']
+non_pathogen_taxa = taxa_df[taxa_df.human_pathogen == 'No']
+tax_ids = pathogen_taxa.taxonomy_id.astype(str).to_list()
+print(f"Preparing marge for {len(tax_ids)} pathogen taxa")
+
+import glob
+
+downloaded_taxa = []
+print(os.getcwd())
+for file in glob.glob("dataset/pathogenkg/PathogenKG_*.tsv"):
+    filename = os.path.basename(file)
+    tax_id = filename.split("_")[1].split(".")[0]
+    downloaded_taxa.append(tax_id)
+    downloaded_taxa = list(set(downloaded_taxa))
+print(f"Already buiild taxa IDs len {len(downloaded_taxa)}")
+
+# remove downloadded from tax_ids
+tax_ids = [tax_id for tax_id in tax_ids if str(tax_id) not in downloaded_taxa]
+print(f"Taxa IDs to build len {len(tax_ids)}")
+
+#%%
+
+
 AVAILABLE_TARGETS = list(set(tax_ids))
 
 OUT_PATH = 'dataset/pathogenkg/new/'
@@ -266,6 +289,8 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 	
 	target = args.target
+
+	# for target in AVAILABLE_TARGETS:
 	is_eukarya = is_eukaryote(target)
 	pathogenkg_path = os.path.join(OUT_PATH, f'PathogenKG_{target}.tsv')
 	
