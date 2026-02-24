@@ -546,6 +546,7 @@ def set_target_label(edge_ind, target_edges, debug=False):
 	if debug:
 		os.makedirs("debug", exist_ok=True)
 		edge_ind.to_csv("debug/edge_index_with_labels.csv", index=False)
+
 	return edge_ind
 
 def select_target_triplets(edge_index):
@@ -572,6 +573,94 @@ def negative_sampling(target_triplets, negative_rate=1):
 	labels[:target_triplets.shape[0]] = 1
 	neg_samples = torch.tensor(neg_samples)
 	samples = torch.cat([torch.tensor(target_triplets), neg_samples], dim=0)
+	return samples, labels
+
+def negative_sampling_filtered(
+	target_triplets,
+	negative_rate=1,
+	all_true_triplets=None,
+	num_entities=None,
+	seed=42,
+	max_attempts_per_negative=50,
+	debug=False
+):
+	"""
+	Alternative negative sampling for KG link prediction.
+
+	Compared to `negative_sampling`, this version:
+	- filters false negatives using `all_true_triplets` (if provided),
+	- supports deterministic sampling through `seed`,
+	- accepts float/int `negative_rate` safely.
+
+	Args:
+		target_triplets: Positive triplets (N, 3) [h, r, t].
+		negative_rate: Number of negatives per positive.
+		all_true_triplets: Optional iterable with all true KG triplets to filter against.
+		num_entities: Optional total number of entities; if None, infer from data.
+		seed: RNG seed for reproducibility.
+		max_attempts_per_negative: Max retries to avoid sampling a true triplet.
+
+	Returns:
+		samples: Tensor of shape (N + N*negative_rate, 3).
+		labels: Tensor of shape (N + N*negative_rate,), positives first.
+	"""
+	target_triplets = np.asarray(target_triplets, dtype=np.int64)
+	if target_triplets.ndim != 2 or target_triplets.shape[1] != 3:
+		raise ValueError("target_triplets must have shape (N, 3)")
+	if target_triplets.shape[0] == 0:
+		return torch.empty((0, 3), dtype=torch.long), torch.empty((0,), dtype=torch.float)
+
+	neg_rate = int(negative_rate)
+	if neg_rate <= 0:
+		pos_tensor = torch.tensor(target_triplets, dtype=torch.long)
+		labels = torch.ones(pos_tensor.shape[0], dtype=torch.float)
+		return pos_tensor, labels
+
+	rng = np.random.default_rng(seed)
+	pos_num = target_triplets.shape[0]
+	neg_num = pos_num * neg_rate
+
+	if num_entities is None:
+		src, _, dst = target_triplets.T
+		unique_entities = np.unique(np.concatenate([src, dst]))
+	else:
+		unique_entities = np.arange(int(num_entities), dtype=np.int64)
+
+	true_set = set(map(tuple, target_triplets.tolist()))
+	if all_true_triplets is not None:
+		all_true_arr = np.asarray(all_true_triplets, dtype=np.int64)
+		if all_true_arr.ndim == 2 and all_true_arr.shape[1] == 3:
+			true_set.update(map(tuple, all_true_arr.tolist()))
+
+	neg_samples = np.empty((neg_num, 3), dtype=np.int64)
+	filled = 0
+	for i in range(pos_num):
+		h, r, t = target_triplets[i]
+		for _ in range(neg_rate):
+			candidate = None
+			for _attempt in range(max_attempts_per_negative):
+				if rng.random() > 0.5:
+					candidate = (int(rng.choice(unique_entities)), int(r), int(t))
+				else:
+					candidate = (int(h), int(r), int(rng.choice(unique_entities)))
+				if candidate not in true_set:
+					break
+			if candidate is None:
+				candidate = (int(h), int(r), int(t))
+			neg_samples[filled] = candidate
+			filled += 1
+
+	samples = torch.cat(
+		[
+			torch.tensor(target_triplets, dtype=torch.long),
+			torch.tensor(neg_samples, dtype=torch.long),
+		],
+		dim=0
+	)
+	labels = torch.zeros(samples.shape[0], dtype=torch.float)
+	labels[:pos_num] = 1.0
+	if debug:
+		print(f"Generated {neg_num} negative samples for {pos_num} positives.")
 	return samples, labels
 
 def triple_sampling(target_triplet, val_size, test_size, quiet=True, seed=42):

@@ -1,11 +1,11 @@
-﻿﻿# model_eval.py
+﻿# model_eval.py
 """
 Script per VALUTARE modelli già addestrati.
 Non esegue alcun training, carica solamente un modello salvato e ne calcola le metriche.
 
 Esempi d'uso:
   # Valuta un modello salvato
-  python model_eval.py --model_path models/target_pathogenkg_20260218/compgcn_run0.pt --model compgcn --task TARGET
+  python model_eval.py --model_path models/target_PathogenKG_n19_20260220_142600/rgcn_run0.pt --model rgcn --task TARGET
 
   # Specifica un dataset diverso
   python model_eval.py --model_path models/myfolder/rgcn_run0.pt --model rgcn --tsv dataset/drkg/drkg_reduced.tsv --task Compound-Gene
@@ -113,7 +113,7 @@ def get_dataset_for_eval(tsv_path, task, validation_size, test_size, quiet, seed
   val_triplets = torch.tensor(val_triplets)
   test_triplets = torch.tensor(test_triplets)
   
-  train_val_triplets = torch.cat([train_triplets, val_triplets], axis=0).to(device)
+  train_val_triplets = torch.cat([train_triplets, val_triplets], axis=0)
   train_val_test_triplets = torch.cat([train_val_triplets, test_triplets], axis=0).to(device)
   
   in_channels_dict = {node_type: (features.shape[1] if features is not None else None) 
@@ -523,8 +523,15 @@ Esempi:
   # Valuta un modello CompGCN
   python model_eval.py --model_path models/target_pathogenkg/compgcn_run0.pt --model compgcn --task TARGET
 
+
+  
+
   # Valuta specificando un dataset diverso
   python model_eval.py --model_path models/myfolder/rgcn.pt --model rgcn --tsv dataset/drkg/drkg_reduced.tsv --task Compound-Gene
+  
+  python model_eval.py --model_path models/cmp_bind_drkg_reduced_20260218_154725/compgcn_run0.pt --model compgcn --tsv dataset/drkg/drkg_reduced.tsv --task CMP_BIND
+
+
 
   # Solo ranking (senza metriche test)
   python model_eval.py --model_path models/myfolder/compgcn.pt --model compgcn --task TARGET --ranking_only

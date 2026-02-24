@@ -71,7 +71,7 @@ import torch.nn.functional as F
 from torcheval.metrics.functional import binary_auprc, binary_auroc
 
 from src.utils import set_seed, load_data, select_target_triplets, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
-                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, add_self_loops, evaluation_metrics
+                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
@@ -544,6 +544,14 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
   pretrain_epochs, freeze_base, alpha, gamma, alpha_adv):
   all_run_metrics = []
 
+  # select negative sampling function based on --alone flag
+  if args.negative_sampling == 'filtered':
+    print("[i] Using filtered negative sampling (only non-target edges) for training.")
+    negative_sampling = negative_sampling_filtered
+  else:
+    print("[i] Using standard negative sampling (all edges) for training.")
+    negative_sampling = negative_sampling
+
   # Multi-relational pretraining phase
   model_state = None
   if pretrain_epochs > 0:
@@ -793,14 +801,13 @@ if __name__ == '__main__':
   parser.add_argument('--alpha', type=float, default=0.25, help='Alpha value of the focal loss')
   parser.add_argument('--gamma', type=float, default=3.0, help='Gamma value of the focal loss')
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
-  
+  parser.add_argument('--negative_sampling', type=str, default='base', help='')  
+
   # add task as argument
   parser.add_argument('--task', type=str, 
                       #default='Compound-ExtGene', 
                       default='TARGET', 
-                      help='Task to perform.')
-
-
+                      help='Task to perform. Could be a comma-separated list of edge types or interaction names (e.g., "CMP_BIND,ENZYME"). If not specified, defaults to "TARGET".')
 
 
   args            = parser.parse_args()
@@ -851,16 +858,16 @@ if __name__ == '__main__':
 
   """
   Example commands:
-  python train_and_eval.py --model rgcn  --epochs 1
+  python train_and_eval.py --model rgcn --epochs 1
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
+  python train_and_eval.py --model compgcn --epochs 100 --negative_sampling filtered
 
   python train_and_eval.py --model compgcn --pretrain_epochs 100 --freeze_base --epochs 200
 
   -- on DRKG (simple triplets):
   python train_and_eval.py --model compgcn --epochs 100 --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
   
-
   -- on DRKG dataset:
   python train_and_eval.py --model compgcn --epochs 300 --task Compound-Gene --tsv dataset/drkg/drkg.tsv
   
