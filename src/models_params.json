@@ -72,6 +72,25 @@
     }
   },
 
+  "pathogen32-cmp-gene":
+  {
+
+    "rgcn": {
+      "conv_layer_num": 3,
+      "layer_0": 64,
+      "layer_1": 16, 
+      "layer_2": 64,
+      "mlp_out_layer": 8,
+      "learning_rate": 0.005310199838324715,
+      "num_bases": 10,
+      "grad_norm": 3.960668787849768,
+      "regularization": 0.00021175183755931665
+    },
+
+    "rgat": {},
+    "compgcn": {}
+  },
+
   "default": {
     "rgcn": {
       "conv_layer_num":3,

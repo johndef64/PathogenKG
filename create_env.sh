@@ -7,15 +7,19 @@ set -e
 
 ENV_NAME=graph-ml-cu128
 
-echo "Installing PyTorch..."
+echo "Installing PyTorch 2.5.1 cu124..."
 conda run -n $ENV_NAME pip install \
-  torch==2.5.1 torchvision torchaudio \
-  --extra-index-url https://download.pytorch.org/whl/cu128
+  torch==2.5.1+cu124 torchvision==0.20.1+cu124 torchaudio==2.5.1+cu124 \
+  --index-url https://download.pytorch.org/whl/cu124
 
-echo "Installing PyG..."
+echo "Installing PyG matching torch 2.5.1 cu124..."
 conda run -n $ENV_NAME pip install --no-cache-dir --only-binary=:all: \
-  pyg_lib torch-geometric torch-scatter torch-sparse torch-cluster torch-spline-conv termcolor torcheval \
-  -f https://data.pyg.org/whl/torch-2.7.1+cu128.html
+  pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv \
+  -f https://data.pyg.org/whl/torch-2.5.1+cu124.html
+
+echo "Installing torch-geometric + extras..."
+conda run -n $ENV_NAME pip install \
+  torch-geometric termcolor torcheval
 
 echo "Fix numpy/scipy/sklearn..."
 conda run -n $ENV_NAME pip install --force-reinstall \

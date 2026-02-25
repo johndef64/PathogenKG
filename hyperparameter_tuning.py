@@ -11,7 +11,7 @@ from src.hetero_rgat import HeterogeneousRGAT as rgat
 from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
 
 # WandB configuration
-PROJECT_NAME = "PathogenKG-Hyperparameter-Optimization"  # Replace with your WandB project name
+PROJECT_NAME = "PathogenKG"  # Replace with your WandB project name
 # ENTITY = "gidek"  # Replace with your WandB entity
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"  # Replace with your WandB entity
 #%%
@@ -291,6 +291,13 @@ def train_model():
 			'test_hits@10': test_metrics["Hits@"][10],
 			'final_mixed_metric': 0.2 * test_metrics["Auroc"] + 0.4 * test_metrics["Auprc"] + 0.4 * test_metrics["MRR"]
 		})
+		"""
+		final_mixed_metric
+		AUROC (20%): misura separazione classi, robusta ma meno sensibile a imbalance.
+		AUPRC (40%): cruciale per link prediction (pochi edge positivi), enfatizza precision/recall su positivi.
+		MRR (40%): prioritizza top ranking (essenziale per raccomandazioni link).
+		Pesi enfatizzano metriche ranking-specifiche vs AUROC generica.
+		"""
 		
 		cleanup_cuda()
 		

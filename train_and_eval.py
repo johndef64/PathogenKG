@@ -1,4 +1,4 @@
-﻿﻿################# TRAIN AND EVAL ####################
+﻿################# TRAIN AND EVAL ####################
 
 
 # # Specify a different TASK (edge type) to train on
@@ -72,7 +72,7 @@ BASE_SEED = 42
 # Single, pre-merged dataset ready for training.
 dataset = 'PathogenKG_merged.tsv'
 dataset = 'PathogenKG_n19.tsv'
-dataset = 'PathogenKG_n19.tsv'
+dataset = 'PathogenKG_n34_core.tsv.zip'
 DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -225,17 +225,18 @@ def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entiti
   with open(models_params_path, 'r') as f:
     models_params = json.load(f)
   
-  # Use task params if available, otherwise use "default" or fall back to first available task
-  if task in models_params:
-    model_params = models_params[task][model_name]
-  elif "default" in models_params:
-    print(f"[get_model] Task '{task}' not found in params, using 'default'")
-    model_params = models_params["default"][model_name]
-  else:
-    # Fall back to first available task (e.g., Compound-ExtGene)
-    fallback_task = list(models_params.keys())[0]
-    print(f"[get_model] Task '{task}' not found in params, using '{fallback_task}' params")
-    model_params = models_params[fallback_task][model_name]
+  # Select params by sweep (not by task). Fallback to "default" sweep if needed.
+  sweep = "pathogen32-cmp-gene"
+  if sweep not in models_params:
+    print(f"[get_model] Sweep '{sweep}' not found, using 'default' sweep")
+    sweep = "default"
+
+  if sweep not in models_params:
+    raise KeyError("[get_model] Neither requested sweep nor 'default' found in models_params.json")
+  if model_name not in models_params[sweep]:
+    raise KeyError(f"[get_model] Model '{model_name}' not found in sweep '{sweep}'")
+
+  model_params = models_params[sweep][model_name]
 
   conv_hidden_channels = {f'layer_{x}':model_params[f'layer_{x}']  for x in range(model_params['conv_layer_num'])} 
 
@@ -843,6 +844,7 @@ if __name__ == '__main__':
   """
   Example commands:
   python train_and_eval.py --model rgcn --epochs 1
+  python train_and_eval.py --model rgcn --runs 1 --epochs 100
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model compgcn --epochs 100 --negative_sampling filtered
