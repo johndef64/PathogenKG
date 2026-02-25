@@ -71,6 +71,7 @@ SWEEP_CONFIG = {
 # AVAILABLE_MODELS = ['rgcn', 'rgat', 'compgcn']
 # AVAILABLE_MODELS = ['rgat']
 AVAILABLE_MODELS = ['rgcn', 'compgcn']
+AVAILABLE_MODELS = ['compgcn']
 BASE_SEED = 42
 negative_sampling = negative_sampling_filtered  # Use filtered negative sampling for better evaluation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -337,7 +338,10 @@ def run_hyperparameter_optimization():
 		print(f"Starting hyperparameter optimization for {model_name}")
 		
 		# Create model-specific sweep config
-		sweep_config = SWEEP_CONFIG.copy()
+		# sweep_config = SWEEP_CONFIG.copy()
+		import copy
+		sweep_config = copy.deepcopy(SWEEP_CONFIG)
+
 		sweep_config['name'] = f'{model_name}-hyperopt'
 		
 		# Add model_name as a fixed parameter
