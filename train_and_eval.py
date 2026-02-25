@@ -1,4 +1,4 @@
-﻿################# TRAIN AND EVAL ####################
+﻿﻿################# TRAIN AND EVAL ####################
 
 
 # # Specify a different TASK (edge type) to train on
@@ -534,14 +534,15 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
   pretrain_epochs, freeze_base, alpha, gamma, alpha_adv):
   all_run_metrics = []
 
-  # select negative sampling function based on --alone flag
+  # Select negative sampler without shadowing imported function names.
   if args.negative_sampling == 'filtered':
     print("[i] Using filtered negative sampling (only non-target edges) for training.")
-    negative_sampling = negative_sampling_filtered
+    neg_sampler = negative_sampling_filtered
   else:
     print("[i] Using standard negative sampling (all edges) for training.")
-    negative_sampling = negative_sampling
+    neg_sampler = negative_sampling
 
+    
   # Multi-relational pretraining phase
   model_state = None
   if pretrain_epochs > 0:
@@ -575,7 +576,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
 
       for epoch in tqdm(range(1, pretrain_epochs+1)):
           # negative sampling on all relations
-          neg_triplets, neg_labels = negative_sampling(pt_train_triplets.cpu(), negative_rate)
+          neg_triplets, neg_labels = neg_sampler(pt_train_triplets.cpu(), negative_rate)
           neg_triplets, neg_labels = neg_triplets.to(device), neg_labels.to(device)
 
           train(pre_model, optimizer_pre, grad_norm, \
@@ -645,7 +646,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
     best_model_found  = False
     with trange(1, (epochs + 1), desc=f'Run {i} | Epochs', position=0) as epochs_tqdm:
       for epoch in epochs_tqdm:
-        training_triplets, train_labels = negative_sampling(train_triplets, negative_rate)
+        training_triplets, train_labels = neg_sampler(train_triplets, negative_rate)
         training_triplets, train_labels = training_triplets.to(device), train_labels.to(device)
         # Train
         train_metrics = train(
@@ -664,7 +665,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
           )
         # Validate
         if epoch%evaluate_every==0:
-          validation_triplets, val_labels = negative_sampling(val_triplets, negative_rate)
+          validation_triplets, val_labels = neg_sampler(val_triplets, negative_rate)
           validation_triplets, val_labels = validation_triplets.to(device), val_labels.to(device)
           val_metrics = test(
             model,
@@ -703,7 +704,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
       # Test best model
       model.eval()
       with torch.no_grad():    
-          testing_triplets, test_labels = negative_sampling(test_triplets, negative_rate)
+          testing_triplets, test_labels = neg_sampler(test_triplets, negative_rate)
           testing_triplets, test_labels = testing_triplets.to(device), test_labels.to(device)
           metrics = test(
             model,
