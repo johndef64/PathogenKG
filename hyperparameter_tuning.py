@@ -1,9 +1,10 @@
+#%%
 import gc
 import wandb
 import torch
 from src.utils import set_seed
 import torch.nn.functional as F
-from train_and_eval_v2 import get_dataset, train, test, negative_sampling
+from train_and_eval import get_dataset, train, test, negative_sampling, negative_sampling_filtered
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
@@ -13,7 +14,7 @@ from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
 PROJECT_NAME = "PathogenKG-Hyperparameter-Optimization"  # Replace with your WandB project name
 # ENTITY = "gidek"  # Replace with your WandB entity
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"  # Replace with your WandB entity
-
+#%%
 # Hyperparameter search space
 SWEEP_CONFIG = {
 	'method': 'bayes',
@@ -71,6 +72,7 @@ SWEEP_CONFIG = {
 # AVAILABLE_MODELS = ['rgat']
 AVAILABLE_MODELS = ['rgcn', 'compgcn']
 BASE_SEED = 42
+negative_sampling = negative_sampling_filtered  # Use filtered negative sampling for better evaluation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def cleanup_cuda():
@@ -145,7 +147,7 @@ def train_model():
 	model_name = config.model_name
 	
 	# Fixed training parameters
-	tsv_path = 'dataset/PathogenKG_n19.tsv'  
+	tsv_path = 'dataset/PathogenKG_n34_core.tsv.zip'  
 	task = "TARGET"  #'Compound-ExtGene'
 	validation_size = 0.1
 	test_size = 0.2
@@ -158,6 +160,9 @@ def train_model():
 	# added new {2025-12-15}
 	oversample_rate =  5
 	undersample_rate = 0.5
+	alpha = 0.25
+	gamma = 3.0
+	alpha_adv = 2.0
 	
 	# Set seed for reproducibility
 	seed = BASE_SEED
@@ -170,7 +175,7 @@ def train_model():
 		 train_triplets, train_index, flattened_features_per_type, val_triplets,
 		 train_val_triplets, test_triplets, train_val_test_triplets,
 		 edge_index, ent2id, relation2id) = get_dataset(
-			tsv_path, task, validation_size, test_size, True, seed, alone,
+			tsv_path, task, validation_size, test_size, True, seed,
 			# added new {2025-12-15}
 			oversample_rate=oversample_rate,
 			undersample_rate=undersample_rate
@@ -219,7 +224,8 @@ def train_model():
 			train_metrics = train(
 				model, optimizer, config.grad_norm, config.regularization,
 				flattened_features_per_type, train_index,
-				training_triplets, train_labels, change_points
+				training_triplets, train_labels,
+				alpha, gamma, alpha_adv, change_points
 			)
 			
 			# Validation
@@ -232,7 +238,8 @@ def train_model():
 					model, config.regularization,
 					flattened_features_per_type, train_index,
 					validation_triplets, val_labels,
-					train_val_triplets, change_points
+					train_val_triplets,
+					alpha, gamma, alpha_adv, change_points
 				)
 				
 				# Calculate mixed metric
@@ -270,7 +277,8 @@ def train_model():
 			model, config.regularization,
 			flattened_features_per_type, train_index,
 			testing_triplets, test_labels,
-			train_val_test_triplets, change_points
+			train_val_test_triplets,
+			alpha, gamma, alpha_adv, change_points
 		)
 		
 		# Log final test metrics

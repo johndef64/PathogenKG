@@ -29,7 +29,11 @@ taxa_df.human_pathogen.value_counts()
 
 pathogen_taxa = taxa_df[taxa_df.human_pathogen != 'No']
 non_pathogen_taxa = taxa_df[taxa_df.human_pathogen == 'No']
+pathogen_taxa_core = pathogen_taxa[pathogen_taxa['STRING_type'] == 'core']
+pathogen_taxa_periphery = pathogen_taxa[pathogen_taxa['STRING_type'] == 'periphery']
 pathogen_taxa.STRING_type.value_counts() 
+
+pathogen_taxa
 #%%
 non_pathogen_taxa.STRING_type.value_counts() 
 #%%
