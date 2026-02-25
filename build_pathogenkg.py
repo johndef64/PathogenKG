@@ -1,4 +1,5 @@
 ﻿#%%
+import json
 import os
 import csv
 import gzip
@@ -47,6 +48,7 @@ print(f"Taxa IDs to build len {len(tax_ids)}")
 AVAILABLE_TARGETS = list(set(tax_ids))
 
 OUT_PATH = 'dataset/pathogenkg/new/'
+os.makedirs(OUT_PATH, exist_ok=True)
 
 def read_gz_file(input_path, encoding='utf-8'):
 	"""Generator for reading gzipped files line by line."""
@@ -54,7 +56,35 @@ def read_gz_file(input_path, encoding='utf-8'):
 		for line in file:
 			yield line.strip()
 
-def get_target_ppi(target):
+def load_string_uniprot_aliases(target):
+	"""Load STRING protein -> UniProt alias mapping (source == UniProt_ID)."""
+	alias_path = f'dataset/STRING/{target}.protein.aliases.v12.0.txt.gz'
+	alias_map = {}
+	if not os.path.exists(alias_path):
+		return alias_map
+
+	for line in read_gz_file(alias_path):
+		parts = line.split('\t')
+		if not parts or parts[0] == '#string_protein_id':
+			continue
+		if len(parts) < 3:
+			continue
+
+		string_id, alias, source = parts[0], parts[1], parts[2]
+		if source != 'UniProt_ID':
+			continue
+		if '.' in string_id:
+			string_id = string_id.split('.', 1)[1]
+		if string_id not in alias_map:
+			alias_map[string_id] = alias
+	return alias_map
+
+def to_uniprot_alias(protein_id, alias_map):
+	"""Return UniProt alias when available, otherwise the original STRING protein id."""
+	return alias_map.get(protein_id, protein_id)
+
+
+def get_target_ppi(target, alias_map):
 	"""Extract protein-protein interactions with normalized scores >= 0.6."""
 	input_path = f'dataset/STRING/{target}.protein.physical.links.v12.0.txt.gz'
 	input_action_file_path = f'dataset/STRING/{target}.protein.actions.v11.0.txt.gz'
@@ -123,11 +153,13 @@ def get_target_ppi(target):
 			if normalized_score >= 0.6:
 				pair = tuple(sorted([p1, p2]))
 				interaction_type = action_modes.get(pair, 'gene_OTHER_gene')
-				target_ppi.append(f'ExtGene::Uniprot:{p1}\t{interaction_type}\tExtGene::Uniprot:{p2}\tSTRING\tExtGene-ExtGene')
+				p1_alias = to_uniprot_alias(p1, alias_map)
+				p2_alias = to_uniprot_alias(p2, alias_map)
+				target_ppi.append(f'ExtGene::Uniprot:{p1_alias}\t{interaction_type}\tExtGene::Uniprot:{p2_alias}\tSTRING\tExtGene-ExtGene')
 	
 	return target_ppi
 
-def get_target_orthology_groups(target, is_eukarya):
+def get_target_orthology_groups(target, is_eukarya, alias_map):
 	"""Extract orthology group mappings."""
 	input_path = f'dataset/STRING/{target}.protein.orthology.v12.0.txt.gz'
 	orthology_groups = {}
@@ -151,10 +183,10 @@ def get_target_orthology_groups(target, is_eukarya):
 	if is_eukarya:
 		orthology_groups = {k: v for k, v in orthology_groups.items() if 'COG' not in v}
 	
-	return [f'ExtGene::Uniprot:{protein}\tORTHOLOGY\tOrthologyGroup::eggKNOG:{group}\tSTRING\tExtGene-OrthologyGroup'
+	return [f'ExtGene::Uniprot:{to_uniprot_alias(protein, alias_map)}\tORTHOLOGY\tOrthologyGroup::eggKNOG:{group}\tSTRING\tExtGene-OrthologyGroup'
 			for protein, group in orthology_groups.items()]
 
-def get_target_gene_ontologies(target):
+def get_target_gene_ontologies(target, alias_map):
 	"""Extract gene ontology annotations."""
 	input_path = f'dataset/STRING/{target}.protein.enrichment.terms.v12.0.txt.gz'
 	target_gene_ontologies = []
@@ -172,25 +204,44 @@ def get_target_gene_ontologies(target):
 			continue
 			
 		go_id = go_term.split(':', 1)[1]
+		protein_alias = to_uniprot_alias(protein, alias_map)
 		target_gene_ontologies.append(
-			f'ExtGene::Uniprot:{protein}\t{interaction}\tGO::GO:{go_id}\tSTRING\tExtGene-GeneOnthology'
+			f'ExtGene::Uniprot:{protein_alias}\t{interaction}\tGO::GO:{go_id}\tSTRING\tExtGene-GeneOnthology'
 		)
 	
 	return target_gene_ontologies
 
 def load_target_proteins(target):
-	"""Load target proteins for given taxonomy."""
+	"""Load target proteins for given taxonomy.
+	
+	DrugBank_ID,UniProt_ID,taxonomy_id,EntryName
+	BE0004508,P46459,9606,ASPQ_PSEPK
+	BE0003422,Q96AE4,9606,ASPQ_PSEPK
+	BE0003811,P63151,9606,ASPQ_PSEPK
+	"""
 	targets_path = 'dataset/DRUGBANK/drugbank_uniprot_taxonomy.csv'
-	targets = set()
+
+	TargetFormat = "UniProt_ID"
+	TargetFormat = "EntryName"  # alternative format if needed, but requires additional mapping step from UniProt_ID to EntryName using the same file or an external source like UniProt API.
+	# real al columns as strin
+	df = pd.read_csv(targets_path, dtype=str)
+	#update dataframe with entry name and save i again
+		# per favore se manca la colonna EntryName crela usando l'alis json
+	alias_json_path = 'dataset/DRUGBANK/uniprot_entry_names.json'
+	if not os.path.exists(alias_json_path):
+		print(f"Alias JSON file not found: {alias_json_path}")
+		return set()
+	with open(alias_json_path, 'r') as f:
+		alias_map = json.load(f)
+
+	df['EntryName'] = df['UniProt_ID'].map(alias_map)
+	df.to_csv(targets_path, index=False)  # save updated dataframe with EntryName column
+
+	df = pd.read_csv(targets_path, dtype=str)
 	
-	with open(targets_path, 'r') as fin:
-		reader = csv.reader(fin)
-		next(reader)  # Skip header
-		for row in reader:
-			if row[2] == target:
-				targets.add(row[1])
-	
-	return targets
+
+	filtered = df[df['taxonomy_id'] == str(target)][TargetFormat].dropna()
+	return set(filtered.astype(str))
 
 def load_drugbank_mapping():
 	"""Load DrugBank ID to external ID mapping."""
@@ -219,6 +270,13 @@ def get_target_drugs(target):
 	
 	drugbank_mapping = load_drugbank_mapping()
 	target_drugs = []
+
+	# load alias map to convert STRING protein IDs to UniProt IDs when possible
+	file_path  = "dataset/DRUGBAK/uniprot_entry_names.json"
+	alias_map = {}
+	if os.path.exists(file_path):
+		with open(file_path, 'r') as f:
+			alias_map = json.load(f)
 	
 	interactions_path = 'dataset/DRUGBANK/pathogenkg_drug_target_triples.csv'
 	with open(interactions_path, 'r') as fin:
@@ -230,6 +288,10 @@ def get_target_drugs(target):
 			
 			head_id = head.split('::')[1].split(':', 1)[1]
 			tail_id = tail.split('::')[1].split(':', 1)[1]
+
+			# use convertion dict to replace tail_id with alias if exists
+			if tail_id in alias_map:
+				tail_id = alias_map[tail_id]
 			
 			if tail_id in target_proteins and head_id in drugbank_mapping:
 				compound_id = drugbank_mapping[head_id]
@@ -247,6 +309,48 @@ def save_pathogenkg(data_lists, pathogenkg_path):
 			for line in data_list:
 				fout.write(f'{line}\n')
 
+def extract_extgene_uniprot_ids(triples):
+	"""Extract ExtGene::Uniprot IDs from head and tail fields of triples."""
+	proteins = set()
+	for line in triples:
+		parts = line.split('\t')
+		if len(parts) < 3:
+			continue
+		head = parts[0]
+		tail = parts[2]
+		if head.startswith('ExtGene::Uniprot:'):
+			proteins.add(head.split(':', 2)[2])
+		if tail.startswith('ExtGene::Uniprot:'):
+			proteins.add(tail.split(':', 2)[2])
+	return proteins
+
+def update_string_drugbank_report(target, drugbank_targets, string_proteins):
+	"""Update per-target report with DrugBank targets linked to STRING proteins."""
+	report_path = os.path.join(OUT_PATH, 'drugbank_string_target_overlap_report.txt')
+	os.makedirs(os.path.dirname(report_path), exist_ok=True)
+
+	related = len(drugbank_targets.intersection(string_proteins))
+	total = len(drugbank_targets)
+	percentage = (related / total * 100.0) if total else 0.0
+
+	current_rows = {}
+	if os.path.exists(report_path):
+		with open(report_path, 'r', encoding='utf-8') as fin:
+			for line in fin:
+				line = line.strip()
+				if not line or line.startswith('taxid\t'):
+					continue
+				row = line.split('\t')
+				if row:
+					current_rows[row[0]] = line
+
+	current_rows[target] = f'{target}\t{related}\t{total}\t{percentage:.2f}'
+
+	with open(report_path, 'w', encoding='utf-8') as fout:
+		fout.write('taxid\trelated_drugbank_targets\ttotal_drugbank_targets\trelation_percent\n')
+		for taxid in sorted(current_rows, key=lambda x: int(x)):
+			fout.write(f'{current_rows[taxid]}\n')
+
 def log_process(name, target, func, *args):
 	"""Helper to log process timing and results."""
 	logging.info(f'Getting {name} for {target}...')
@@ -259,10 +363,11 @@ def log_process(name, target, func, *args):
 
 def generate_pathogenkg_per_target(target, pathogenkg_path, is_eukarya):
 	"""Generate PathogenKG file for target organism."""
+	alias_map = load_string_uniprot_aliases(target)
 	# Process all data types
-	target_ppi = log_process('ppi', target, get_target_ppi, target)
-	target_orthology = log_process('orthology groups', target, get_target_orthology_groups, target, is_eukarya)
-	target_go = log_process('gene ontologies', target, get_target_gene_ontologies, target)
+	target_ppi = log_process('ppi', target, get_target_ppi, target, alias_map)
+	target_orthology = log_process('orthology groups', target, get_target_orthology_groups, target, is_eukarya, alias_map)
+	target_go = log_process('gene ontologies', target, get_target_gene_ontologies, target, alias_map)
 	target_drugs = log_process('drugs', target, get_target_drugs, target)
 	
 	# Save results
@@ -275,10 +380,17 @@ def generate_pathogenkg_per_target(target, pathogenkg_path, is_eukarya):
 	logging.info(f'Done in {elapsed}s')
 	logging.info(f'PathogenKG for {target} saved to {pathogenkg_path} | {total_lines} lines')
 
+	drugbank_targets = load_target_proteins(target)
+	string_proteins = (
+		extract_extgene_uniprot_ids(target_ppi)
+		| extract_extgene_uniprot_ids(target_orthology)
+		| extract_extgene_uniprot_ids(target_go)
+	)
+	update_string_drugbank_report(target, drugbank_targets, string_proteins)
+
 """
 Command-line interface example:
 python build_pathogenkg.py --target 83332
-
 
 """
 
@@ -290,14 +402,16 @@ if __name__ == '__main__':
 	
 	target = args.target
 
-	# for target in AVAILABLE_TARGETS:
-	is_eukarya = is_eukaryote(target)
-	pathogenkg_path = os.path.join(OUT_PATH, f'PathogenKG_{target}.tsv')
-	
-	logging.info(f'Generating PathogenKG for taxonomy {target} | is_eukarya: {is_eukarya}')
-	logging.info(f'Output: {pathogenkg_path}')
-	
-	start = time()
-	generate_pathogenkg_per_target(target, pathogenkg_path, is_eukarya)
-	total_time = get_total_time(start, time())
-	logging.info(f'Generation completed in {total_time}s')
+	for target in AVAILABLE_TARGETS:
+	# for target in AVAILABLE_TARGETS_v1:
+	# for target in [target]:
+		is_eukarya = is_eukaryote(target)
+		pathogenkg_path = os.path.join(OUT_PATH, f'PathogenKG_{target}.tsv')
+		
+		logging.info(f'Generating PathogenKG for taxonomy {target} | is_eukarya: {is_eukarya}')
+		logging.info(f'Output: {pathogenkg_path}')
+		
+		start = time()
+		generate_pathogenkg_per_target(target, pathogenkg_path, is_eukarya)
+		total_time = get_total_time(start, time())
+		logging.info(f'Generation completed in {total_time}s')

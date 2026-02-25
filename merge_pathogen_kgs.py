@@ -3,6 +3,7 @@ import os
 import logging
 import argparse
 import zipfile
+import json
 from time import time
 from collections import defaultdict
 import pandas as pd
@@ -61,6 +62,7 @@ def concatenate_all_targets(targets, out_path):
     expected_cols = ['head', 'interaction', 'tail', 'source', 'type']
 
     lines_per_target = defaultdict(int)
+    uniprots_by_taxa = defaultdict(set)
     dfs = []
     zip_path = os.path.join(file_path, 'pathogenkg_all_pathogens.zip')
     use_zip_source = os.path.exists(zip_path)
@@ -122,6 +124,17 @@ def concatenate_all_targets(targets, out_path):
 
             df = df.dropna(how='all')
             lines_per_target[target] = len(df)
+
+            # Build mapping taxa_id -> list of UniProt IDs found in head/tail fields.
+            for col in ['head', 'tail']:
+                col_series = df[col].dropna().astype(str)
+                for value in col_series:
+                    marker = 'ExtGene::Uniprot:'
+                    if marker in value:
+                        uniprot_id = value.split(marker, 1)[1].strip()
+                        if uniprot_id:
+                            uniprots_by_taxa[str(target)].add(uniprot_id)
+
             logging.info(f'{logging_header} Target {target}: {len(df)} lines appended')
             dfs.append(df)
     finally:
@@ -129,9 +142,15 @@ def concatenate_all_targets(targets, out_path):
             zip_ref.close()
 
     out_df = pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame(columns=expected_cols)
+    uniprots_by_taxa_json = {taxa_id: sorted(list(uniprots)) for taxa_id, uniprots in uniprots_by_taxa.items()}
+
     out_path = out_path.replace('.tsv', f'.tsv.zip')
     # save as compressed TSV
     out_df.to_csv(out_path, sep='\t', index=False, compression='zip')
+
+    uniprot_json_path = os.path.join(os.path.dirname(out_path), 'Uniprot_Taxa.json')
+    with open(uniprot_json_path, 'w', encoding='utf-8') as fout:
+        json.dump(uniprots_by_taxa_json, fout, ensure_ascii=False, indent=2)
 
     logging.info(f'{logging_header} Done')
     return int(len(out_df)), lines_per_target

@@ -789,7 +789,7 @@ if __name__ == '__main__':
   parser.add_argument('--alpha', type=float, default=0.25, help='Alpha value of the focal loss')
   parser.add_argument('--gamma', type=float, default=3.0, help='Gamma value of the focal loss')
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
-  parser.add_argument('--negative_sampling', type=str, default='base', help='')  
+  parser.add_argument('--negative_sampling', type=str, default='filtered', help='')  
 
   # add task as argument
   parser.add_argument('--task', type=str, 
