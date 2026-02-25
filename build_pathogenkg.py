@@ -272,7 +272,16 @@ def get_target_drugs(target):
 	target_drugs = []
 
 	# load alias map to convert STRING protein IDs to UniProt IDs when possible
-	file_path  = "dataset/DRUGBAK/uniprot_entry_names.json"
+	file_path  = "dataset/DRUGBANK/uniprot_entry_names.json"
+	"""
+	{
+    "P48167": "GLRB_HUMAN",
+    "O75311": "GLRA3_HUMAN",
+    "P23416": "GLRA2_HUMAN",
+    "P23415": "GLRA1_HUMAN",
+    "P35372": "OPRM_HUMAN",
+    "P41145": "OPRK_HUMAN",
+	"""
 	alias_map = {}
 	if os.path.exists(file_path):
 		with open(file_path, 'r') as f:
@@ -298,6 +307,7 @@ def get_target_drugs(target):
 				target_drugs.append(
 					f'Compound::{compound_id}\t{interaction}\tExtGene::Uniprot:{tail_id}\t{source}\tCompound-ExtGene'
 				)
+				# print(f"Added drug-target interaction: {compound_id} -> {tail_id} for target {target}")
 	
 	return target_drugs
 
@@ -324,12 +334,47 @@ def extract_extgene_uniprot_ids(triples):
 			proteins.add(tail.split(':', 2)[2])
 	return proteins
 
-def update_string_drugbank_report(target, drugbank_targets, string_proteins):
-	"""Update per-target report with DrugBank targets linked to STRING proteins."""
+def update_string_drugbank_report(target, pathogenkg_path):
+	"""Update report using only the generated dataset.
+
+	- total_drugbank_targets: unique UniProt IDs that appear in DrugBank TARGET relations
+	- related_drugbank_targets: among those, how many also appear in non-DrugBank-target relations
+	"""
 	report_path = os.path.join(OUT_PATH, 'drugbank_string_target_overlap_report.txt')
 	os.makedirs(os.path.dirname(report_path), exist_ok=True)
 
-	related = len(drugbank_targets.intersection(string_proteins))
+	drugbank_targets = set()
+	other_relation_proteins = set()
+
+	with open(pathogenkg_path, 'r', encoding='utf-8') as fin:
+		next(fin, None)  # skip header
+		for line in fin:
+			line = line.strip()
+			if not line:
+				continue
+			parts = line.split('\t')
+			if len(parts) < 5:
+				continue
+
+			head, interaction, tail, source, type_ = parts[:5]
+			is_drug_target_relation = (
+				head.startswith('Compound::')
+				and interaction == 'TARGET'
+				and tail.startswith('ExtGene::Uniprot:')
+				and source == 'DRUGBANK'
+				and type_ == 'Compound-ExtGene'
+			)
+
+			if is_drug_target_relation:
+				drugbank_targets.add(tail.split(':', 2)[2])
+				continue
+
+			if head.startswith('ExtGene::Uniprot:'):
+				other_relation_proteins.add(head.split(':', 2)[2])
+			if tail.startswith('ExtGene::Uniprot:'):
+				other_relation_proteins.add(tail.split(':', 2)[2])
+
+	related = len(drugbank_targets.intersection(other_relation_proteins))
 	total = len(drugbank_targets)
 	percentage = (related / total * 100.0) if total else 0.0
 
@@ -380,13 +425,7 @@ def generate_pathogenkg_per_target(target, pathogenkg_path, is_eukarya):
 	logging.info(f'Done in {elapsed}s')
 	logging.info(f'PathogenKG for {target} saved to {pathogenkg_path} | {total_lines} lines')
 
-	drugbank_targets = load_target_proteins(target)
-	string_proteins = (
-		extract_extgene_uniprot_ids(target_ppi)
-		| extract_extgene_uniprot_ids(target_orthology)
-		| extract_extgene_uniprot_ids(target_go)
-	)
-	update_string_drugbank_report(target, drugbank_targets, string_proteins)
+	update_string_drugbank_report(target, pathogenkg_path)
 
 """
 Command-line interface example:
@@ -394,6 +433,14 @@ python build_pathogenkg.py --target 83332
 
 """
 
+if __name__ == '__main__':
+	# test def load_target_proteins(target):
+	target = '83332'
+	proteins = load_target_proteins(target)
+	print(f"Proteins for target {target}: {proteins}")
+
+
+#%%
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser(description='Generate PathogenKG files for target organisms')
 	parser.add_argument('--target', default='83332', choices=AVAILABLE_TARGETS,
@@ -405,7 +452,8 @@ if __name__ == '__main__':
 	for target in AVAILABLE_TARGETS:
 	# for target in AVAILABLE_TARGETS_v1:
 	# for target in [target]:
-		is_eukarya = is_eukaryote(target)
+		# is_eukarya = is_eukaryote(target)
+		is_eukarya = False
 		pathogenkg_path = os.path.join(OUT_PATH, f'PathogenKG_{target}.tsv')
 		
 		logging.info(f'Generating PathogenKG for taxonomy {target} | is_eukarya: {is_eukarya}')
