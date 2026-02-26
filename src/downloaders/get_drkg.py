@@ -1,5 +1,9 @@
-# get this dataset from:
+import os
 
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
+# get this dataset from:
 url = "https://dgl-data.s3-us-west-2.amazonaws.com/dataset/DRKG/drkg.tar.gz"
 
 # download and extract to dataset/drkg/
@@ -7,7 +11,7 @@ import os
 from pathlib import Path
 import tarfile
 import requests
-DATA_DIR = Path("../dataset/drkg")
+DATA_DIR = Path("dataset/drkg")
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 def download_and_extract(url: str, extract_path: Path) -> None:
     filename = url.split("/")[-1]

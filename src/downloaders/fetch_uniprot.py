@@ -1,7 +1,9 @@
 #%%
 import requests
 import os
-import os
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+    
 os.chdir("dataset")
 
 # https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/

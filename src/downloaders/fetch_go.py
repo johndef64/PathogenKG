@@ -1,6 +1,10 @@
 import requests
 import time
 import os
+
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
 os.chdir("dataset")
 
 def get_go_annotations(uniprot_ids):

@@ -7,23 +7,24 @@ import os
 print(os.getcwd())
 #%%
 
-# os.chdir("dataset")
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
 
-path = r"G:\Altri computer\Horizon\horizon_workspace\projects\DatabaseRetrieval\KnowledgeGraphs\VitaExt\dataset\vitagraph.zip"
+path = r"dataset\drkg\drkg.zip"
 
-vita = pd.read_table(path,  low_memory=False)
+drkg = pd.read_table(path,  low_memory=False)
 #%%
-vita
-vita[vita["type"] == "Gene-Compound"]#.head(10)
+drkg
+drkg[drkg["type"] == "Gene-Compound"]#.head(10)
 #%%
-vita[vita["type"] == "Compound-Gene"]#.head(10)
+drkg[drkg["type"] == "Compound-Gene"]#.head(10)
 
 #%%
 # Print a better formatted report
 report = {
-    "interaction": vita["interaction"].value_counts(),
-    "source": vita["source"].value_counts(),
-    "type": vita["type"].value_counts(),
+    "interaction": drkg["interaction"].value_counts(),
+    "source": drkg["source"].value_counts(),
+    "type": drkg["type"].value_counts(),
 }
 
 for key, value in report.items():
@@ -31,25 +32,23 @@ for key, value in report.items():
     print(value.to_string())
 # %%
 
-vita_gene = vita[vita["type"] == "Gene-Gene"]
-print(vita_gene['interaction'].value_counts())
-len(vita_gene)
+drkg_gene = drkg[drkg["type"] == "Gene-Gene"]
+print(drkg_gene['interaction'].value_counts())
+len(drkg_gene)
 # %%
-print(vita_gene['source'].value_counts())
+print(drkg_gene['source'].value_counts())
 
 # %%
-vita_string = vita[vita["source"] == "STRING"]
-print(vita_string['interaction'].value_counts())
-print(len(vita_string))
-vita_string
+drkg_string = drkg[drkg["source"] == "STRING"]
+print(drkg_string['interaction'].value_counts())
+print(len(drkg_string))
+drkg_string
 # %%
-vita_string[vita_string["head"].str.contains(":22888")]
+drkg_string[drkg_string["head"].str.contains(":22888")]
 # %%
-vita[vita["head"].str.contains(":22888")]
+drkg[drkg["head"].str.contains(":22888")]
 
 #%%
-
-
 
 # GREAT CONVERSION OF STRING DATASET TO TRIPLES
 import pandas as pd
@@ -287,24 +286,24 @@ d1ind2 = d1[d1["tail"].isin(d2["head"])]
 
 d2ind1 = d2[d2["tail"].isin(d1["head"])]
 d1ind2, d2ind1
-vita_string["head", "tail"]
+drkg_string["head", "tail"]
 #%%
 
 
-vita_string_small = vita_string[["head", "tail"]]#.drop_duplicates()
+drkg_string_small = drkg_string[["head", "tail"]]#.drop_duplicates()
 triples_df_small = triples_df[["head", "tail"]].drop_duplicates()
-len(vita_string_small), len(triples_df_small)
+len(drkg_string_small), len(triples_df_small)
 
-#check how many triples are in vita_string that are not in triples_df_small
-missing_triples = vita_string_small[~vita_string_small.set_index(['head', 'tail']).index.isin(triples_df_small.set_index(['head', 'tail']).index)]
-print(f"Missing triples in vita_string: {len(missing_triples)}")
-#check how many triples are in triples_df_small that are not in vita_string_small
-missing_triples_df = triples_df_small[~triples_df_small.set_index(['head', 'tail']).index.isin(vita_string_small.set_index(['head', 'tail']).index)]
+#check how many triples are in drkg_string that are not in triples_df_small
+missing_triples = drkg_string_small[~drkg_string_small.set_index(['head', 'tail']).index.isin(triples_df_small.set_index(['head', 'tail']).index)]
+print(f"Missing triples in drkg_string: {len(missing_triples)}")
+#check how many triples are in triples_df_small that are not in drkg_string_small
+missing_triples_df = triples_df_small[~triples_df_small.set_index(['head', 'tail']).index.isin(drkg_string_small.set_index(['head', 'tail']).index)]
 print(f"Missing triples in triples_df_small: {len(missing_triples_df)}")
 #%%
 # Remove reverse duplicates
-vita_string_small_rev = vita_string_small.drop_duplicates(subset=["head", "tail"])
-len(vita_string_small_rev)
+drkg_string_small_rev = drkg_string_small.drop_duplicates(subset=["head", "tail"])
+len(drkg_string_small_rev)
 #%%
 
 
@@ -327,32 +326,32 @@ def remove_reverse_duplicates(df):
 string_noreverse = remove_reverse_duplicates(triples_df_small)
 print("Numero di triple senza duplicati inversi in STRING:", len(string_noreverse), "percentuale:", len(string_noreverse) / len(triples_df_small) * 100)
 #%%
-vita_string_noreverse = remove_reverse_duplicates(vita_string_small)
-print("Numero di triple senza duplicati inversi in VITA (STRING):", len(vita_string_noreverse), "percentuale:", len(vita_string_noreverse) / len(vita_string_small) * 100)
+drkg_string_noreverse = remove_reverse_duplicates(drkg_string_small)
+print("Numero di triple senza duplicati inversi in VITA (STRING):", len(drkg_string_noreverse), "percentuale:", len(drkg_string_noreverse) / len(drkg_string_small) * 100)
 #%%
-vita_small = vita[["head","tail"]].drop_duplicates()
-vita_noreverse = remove_reverse_duplicates(vita_small)
-print("Numero di triple senza duplicati inversi in VITA (all):", len(vita_noreverse), "percentuale:", len(vita_noreverse) / len(vita_small) * 100)
+drkg_small = drkg[["head","tail"]].drop_duplicates()
+drkg_noreverse = remove_reverse_duplicates(drkg_small)
+print("Numero di triple senza duplicati inversi in VITA (all):", len(drkg_noreverse), "percentuale:", len(drkg_noreverse) / len(drkg_small) * 100)
 
 #%%
-len(vita)
+len(drkg)
 
 
 #%%
-vita_string_small = vita_string[["head", "interaction","tail"]].reset_index(drop=True)
-vita_string_small[vita_string_small.duplicated()].sort_values(by=["head", "tail"])
+drkg_string_small = drkg_string[["head", "interaction","tail"]].reset_index(drop=True)
+drkg_string_small[drkg_string_small.duplicated()].sort_values(by=["head", "tail"])
 #%%
-vita_string_small.drop_duplicates()
+drkg_string_small.drop_duplicates()
 # %%
 
-vita_drug = vita[vita["source"] == "DRUGBANK"]
-print(vita_drug['interaction'].value_counts())
+drkg_drug = drkg[drkg["source"] == "DRUGBANK"]
+print(drkg_drug['interaction'].value_counts())
 
-vita_drug[vita_drug["interaction"] == "ENZYME"].head(10).to_clipboard()
+drkg_drug[drkg_drug["interaction"] == "ENZYME"].head(10).to_clipboard()
 
 # %%
 
-vita[vita["source"] == "STRING"].head(10)
+drkg[drkg["source"] == "STRING"].head(10)
 # %%
-vita
+drkg
 

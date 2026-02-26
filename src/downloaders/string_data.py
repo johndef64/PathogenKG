@@ -4,7 +4,8 @@ import pandas as pd
 import glob
 
 # filefolder = os.path.dirname(os.path.abspath(__file__))
-os.chdir('../')
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
 os.getcwd()
 #%%
 os.chdir('dataset')

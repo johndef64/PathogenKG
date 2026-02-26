@@ -3,6 +3,9 @@ import requests
 from tqdm import tqdm
 from collections import defaultdict
 import os
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
 os.chdir("dataset")
 
 ########################## Get Unprot id from taxonomyid ###################################

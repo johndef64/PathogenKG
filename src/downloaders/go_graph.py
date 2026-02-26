@@ -8,7 +8,8 @@ import os
 import pandas as pd
 
 # Change to parent directory
-os.chdir('..')
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
 print("Current directory:", os.getcwd())
 
 

@@ -38,11 +38,13 @@ Optionally drops self-loops (head == tail), matching the example.
 """
 
 from __future__ import annotations
-
+import os
 import csv
 from pathlib import Path
 
-
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+    
 def _first_token(value: str) -> str:
     value = (value or "").strip()
     return value.split("::", 1)[0] if value else ""

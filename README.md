@@ -32,7 +32,7 @@ pip install --no-cache-dir --only-binary=:all: \
 
 ### Full Pipeline
 
-**/downloadres** 
+**/downloadeers** 
 - Get source datasets from STRING and DrugBank
 
 **`generate_all_pathogenkg.sh`**

@@ -12,6 +12,9 @@ import threading
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

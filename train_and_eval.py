@@ -852,9 +852,14 @@ if __name__ == '__main__':
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model compgcn --epochs 100 --negative_sampling filtered
-
   python train_and_eval.py --model compgcn --pretrain_epochs 100 --freeze_base --epochs 200
 
+  -----------------------------------------------------------
+  # optimized training commands: 
+  python train_and_eval.py --model compgcn --run 3 --epochs 400  --tsv dataset/PathogenKG_n34_core.tsv.zip --early_stopping --negative_sampling filtered
+
+  -----------------------------------------------------------
+  
   -- on DRKG (simple triplets):
   python train_and_eval.py --model compgcn --epochs 100 --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
   

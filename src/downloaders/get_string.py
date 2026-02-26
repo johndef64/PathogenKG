@@ -4,7 +4,9 @@ import glob
 import requests
 import os
 from tqdm import tqdm
-os.chdir('../dataset')
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+os.chdir('dataset')
 
 # Txonomy ID list (version 1)
 tax_ids_prev =[9606, 83332, 224308, 208964, 99287, 71421, 243230, 

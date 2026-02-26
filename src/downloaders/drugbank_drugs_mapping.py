@@ -19,6 +19,10 @@ import os
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+# set working director, two diurectory up if current is src
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
 # Configurazione logging
 logging.basicConfig(
     level=logging.INFO,

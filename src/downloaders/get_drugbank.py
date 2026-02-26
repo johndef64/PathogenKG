@@ -4,6 +4,8 @@ import pandas as pd
 import gzip
 from Bio import SwissProt
 import os
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
 os.chdir("dataset")
 
 root = "D:\Data\DrugBank"

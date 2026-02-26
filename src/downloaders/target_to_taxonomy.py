@@ -6,6 +6,9 @@ import requests
 import pandas as pd
 from tqdm.auto import tqdm
 
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
 warnings.simplefilter(action='ignore', category=pd.errors.DtypeWarning)
 
 targets_path = 'drugbank_to_uniprot_targets_mapping.csv'

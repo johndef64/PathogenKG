@@ -1,5 +1,9 @@
 import requests
 import json
+import os
+
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
 
 # Scarica il file GO in formato JSON
 url = "http://purl.obolibrary.org/obo/go.json"

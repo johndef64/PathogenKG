@@ -12,6 +12,9 @@ from urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

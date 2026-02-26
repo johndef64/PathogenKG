@@ -1,6 +1,11 @@
+import os
+
 import pandas as pd
 from Bio import Entrez
 import time
+    
+if os.getcwd().endswith('src/downloaders'):
+    os.chdir('../..')
 
 # Imposta il tuo indirizzo email per Entrez 
 Entrez.email = "your.email@example.com"  
