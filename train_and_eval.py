@@ -532,7 +532,7 @@ def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, re
 
 def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size, test_size, quiet, \
   evaluate_every, negative_rate, model_save_path, oversample_rate, undersample_rate, \
-  pretrain_epochs, freeze_base, alpha, gamma, alpha_adv):
+  pretrain_epochs, freeze_base, alpha, gamma, alpha_adv, early_stopping):
   all_run_metrics = []
 
   # Select negative sampler without shadowing imported function names.
@@ -643,7 +643,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
     torch.autograd.set_detect_anomaly(True)
     val_metrics       = {"Auroc":0, "Auprc":0, "Loss":0, "MRR":0, "Hits@":0}
     patience_trigger  = 0
-    best_mixed_metric = 0
+    best_mixed_metric = -float("inf")
     best_model_found  = False
     with trange(1, (epochs + 1), desc=f'Run {i} | Epochs', position=0) as epochs_tqdm:
       for epoch in epochs_tqdm:
@@ -681,19 +681,21 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
             alpha_adv,
             change_points
           )
-        
-        mixed_metric = 0.2*val_metrics["Auroc"] + 0.4*val_metrics["Auprc"] + 0.4*val_metrics["MRR"]
-        if mixed_metric > best_mixed_metric:
-          best_mixed_metric = mixed_metric
-          patience_trigger = 0
-          # model is saved only if validation improves
-          torch.save(model.state_dict(), run_model_save_path)
-          print("[i] Best model updated.")
-          best_model_found = True
+          mixed_metric = 0.2*val_metrics["Auroc"] + 0.4*val_metrics["Auprc"] + 0.4*val_metrics["MRR"]
+          if mixed_metric > best_mixed_metric:
+            best_mixed_metric = mixed_metric
+            patience_trigger = 0
+            # model is saved only if validation improves
+            torch.save(model.state_dict(), run_model_save_path)
+            print("[i] Best model updated.")
+            best_model_found = True
+          elif early_stopping:
+            patience_trigger += 1
+            if patience_trigger >= patience:
+              print(f"[i] Early stopping triggered at epoch {epoch} (patience={patience}).")
+              break
         else:
-          patience_trigger += 1
-        if patience_trigger > patience:
-          break
+          mixed_metric = 0.2*val_metrics["Auroc"] + 0.4*val_metrics["Auprc"] + 0.4*val_metrics["MRR"]
         
         epochs_tqdm.set_postfix(loss=train_metrics["Loss"], Tr_Auroc=train_metrics["Auroc"], Tr_Auprc=train_metrics["Auprc"],
                                 Val_Auroc=val_metrics["Auroc"], Val_Auprc=val_metrics["Auprc"], Val_mrr=val_metrics["MRR"], Val_hits=val_metrics["Hits@"],
@@ -776,11 +778,13 @@ if __name__ == '__main__':
   parser.add_argument('-m', '--model', type=str, default='compgcn', choices=['rgcn', 'rgat', 'compgcn'], help='Model to use for the ablation study.')
   parser.add_argument('-r', '--runs', type=int, default=1, help='Number of runs for the ablation study.')
   parser.add_argument('-e', '--epochs', type=int, default=400, help='Number of epochs for the ablation study.')
-  parser.add_argument('-p', '--patience', type=int, default=200, help='Patience trigger.')
+  parser.add_argument('-p', '--patience', type=int, default=10, help='Patience for early stopping (used only with --early_stopping).')
+  parser.add_argument('--early_stopping', action='store_true', help='Enable early stopping based on validation performance.')
   parser.add_argument('--validation_size', type=float, default=0.1, help='Validation size for the ablation study.')
   parser.add_argument('--test_size', type=float, default=0.2, help='Test size for the ablation study.')
   parser.add_argument('--quiet', action='store_true', help='If set, the ablation study will print debug output.')
   parser.add_argument('--evaluate_every', type=int, default=5, help='Evaluate every n epochs.')
+  parser.add_argument('--negative_sampling', type=str, default='filtered', help='')  
   parser.add_argument('--negative_rate', type=float, default=1, help='Negative sampling rate for the ablation study.')
   parser.add_argument('--oversample_rate', type=int, default=5, help='how many times to repeat the positive training triplets')
   parser.add_argument('--undersample_rate', type=float, default=0.5, help='fraction [0,1] of non-target triplets to keep in the training graph')
@@ -789,7 +793,6 @@ if __name__ == '__main__':
   parser.add_argument('--alpha', type=float, default=0.25, help='Alpha value of the focal loss')
   parser.add_argument('--gamma', type=float, default=3.0, help='Gamma value of the focal loss')
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
-  parser.add_argument('--negative_sampling', type=str, default='filtered', help='')  
 
   # add task as argument
   parser.add_argument('--task', type=str, 
@@ -816,6 +819,7 @@ if __name__ == '__main__':
   alpha           = args.alpha
   gamma           = args.gamma
   alpha_adv       = args.alpha_adv
+  early_stopping  = args.early_stopping
 
   # get dataset_name (use os.path for cross-platform compatibility)
   dataset_basename = os.path.basename(args.tsv)
@@ -865,4 +869,4 @@ if __name__ == '__main__':
 
   main(model, dataset_tsv, task, runs, epochs, patience, validation_size, test_size, quiet, \
       evaluate_every, negative_rate, model_save_path, oversample_rate, undersample_rate, \
-      pretrain_epochs, freeze_base, alpha, gamma, alpha_adv)
+      pretrain_epochs, freeze_base, alpha, gamma, alpha_adv, early_stopping)

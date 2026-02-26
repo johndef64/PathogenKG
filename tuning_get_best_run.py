@@ -5,7 +5,8 @@ import pandas as pd
 
 
 # WandB configuration
-PROJECT_NAME = "PathogenKG-Hyperparameter-Optimization-rgcn"  # Replace with your WandB project name
+PROJECT_NAME = "PathogenKG-compgcn"  # Replace with your WandB project name
+PROJECT_NAME = "PathogenKG-rgcn"
 # ENTITY = "gidek"  # Replace with your WandB entity
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"  
 
@@ -33,13 +34,82 @@ df
 #%%
 # df['custom_score'] = 0.7 * df.get('val/accuracy', 0) - 0.3 * df.get('val/loss', float('inf'))
 # get best run based on final_mixed_metric
+"""
+# Log final test metrics
+wandb.log({
+    'test_auroc': test_metrics["Auroc"],
+    'test_auprc': test_metrics["Auprc"],
+    'test_mrr': test_metrics["MRR"],
+    'test_hits@1': test_metrics["Hits@"][1],
+    'test_hits@3': test_metrics["Hits@"][3],
+    'test_hits@10': test_metrics["Hits@"][10],
+    'final_mixed_metric': 0.2 * test_metrics["Auroc"] + 0.4 * test_metrics["Auprc"] + 0.4 * test_metrics["MRR"]
+})
+
+final_mixed_metric
+AUROC (20%): misura separazione classi, robusta ma meno sensibile a imbalance.
+AUPRC (40%): cruciale per link prediction (pochi edge positivi), enfatizza precision/recall su positivi.
+MRR (40%): prioritizza top ranking (essenziale per raccomandazioni link).
+Pesi enfatizzano metriche ranking-specifiche vs AUROC generica.
+"""
 
 best_run = runs[df['final_mixed_metric'].idxmax()]
 print(f"Migliore: {best_run.name} (ID: {best_run.id})")
 print(f"Config: {best_run.config}")
-print(f"Link: {best_run.url}")
-print("---")
+# print(f"Link: {best_run.url}")
+best = df.loc[df['final_mixed_metric'].idxmax()]
+print(f"Best run: {best['run_name']} (ID: {best['run_id']})")
+print(f"AUROC: val={best['val_auroc']:.3f}, test={best['test_auroc']:.3f}")
+print(f"AUPRC: val={best['val_auprc']:.3f}, test={best['test_auprc']:.3f}")
+print(f"MRR: test={best['test_mrr']:.3f}")
+# print(f"Train-val gap: {best['train_val_gap']:.2%}")
+print(f"Link: {best['run_url']}")
 best_run.summary
+#%%
+"""
+Migliore: revived-sweep-115 (ID: am4ks7x4)
+Config: {'opn': 'sub', 'dropout': 0.49576013566205784, 'layer_0': 8, 'layer_1': 32, 'layer_2': 64, 'grad_norm': 1.056740604005027, 'num_bases': 30, 'model_name': 'compgcn', 'learning_rate': 0.00019390873242212473, 'mlp_out_layer': 32, 'conv_layer_num': 3, 'regularization': 0.0017364783276804412}
+---
+Best run: revived-sweep-115 (ID: am4ks7x4)
+AUROC: val=0.412, test=0.525
+AUPRC: val=0.439, test=0.527
+MRR: test=0.781
+
+
+compgcn:{
+'opn': 'sub', 
+'dropout': 0.49576013566205784,
+'layer_0': 8, 
+'layer_1': 32, 
+'layer_2': 64,
+'grad_norm': 1.056740604005027,
+'num_bases': 30,
+'model_name': 'compgcn', 
+'learning_rate': 0.00019390873242212473, 
+'mlp_out_layer': 32, 
+'conv_layer_num': 3, 
+'regularization': 0.0017364783276804412
+}
+
+rgcn:
+Migliore: comic-sweep-17 (ID: v4souh00)
+Config: 
+{'layer_0': 32, 
+'layer_1': 8, 
+'layer_2': 32, 
+'grad_norm': 4.81676751697978, 
+'num_bases': 20, 
+'model_name': 'rgcn', 
+'learning_rate': 0.000479221480587765, 
+'mlp_out_layer': 16, 
+'conv_layer_num': 2, 
+'regularization': 1.5994591918278636e-05}
+Best run: comic-sweep-17 (ID: v4souh00)
+AUROC: val=0.514, test=0.637
+AUPRC: val=0.550, test=0.660
+MRR: test=0.531
+"""
+
 #%%
 """
 cerca queste run nel df
@@ -115,6 +185,13 @@ def get_best_run():
     return best
 
 best = get_best_run()
+"""
+Best run: visionary-sweep-147 (ID: 6sxptz2w)
+AUROC: val=0.722, test=0.735
+AUPRC: val=0.679, test=0.702
+MRR: test=0.306
+Train-val gap: 19.24%
+"""
 best
 #%%
 best_run.config

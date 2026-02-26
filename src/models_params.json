@@ -1,104 +1,35 @@
 {
-  "Compound-ExtGene": {
-    "rgcn": {
-      "conv_layer_num":3,
-      "layer_0":16,
-      "layer_1":64,
-      "layer_2":64,
-      "mlp_out_layer":8,
-      "learning_rate":0.01,
-      "num_bases":50,
-      "grad_norm":0.6,
-      "regularization":0.008
-    },
-    "rgat": {
-      "conv_layer_num":1,
-      "layer_0":10,
-      "layer_1":5,
-      "mlp_out_layer":40,
-      "learning_rate":0.01,
-      "num_bases":16,
-      "grad_norm":1,
-      "regularization":0.01
-    },
-    "compgcn": {
-      "conv_layer_num":3,
-      "dropout":0.6,
-      "layer_0":16,
-      "layer_1":32,
-      "layer_2":8,
-      "mlp_out_layer":16,
-      "learning_rate":0.02,
-      "opn":"corr",
-      "grad_norm":0.9,
-      "regularization":9e-05
-    }
 
-  },
+  "pathogen32-cmp-gene": {   
+    "rcgn":{
+        "layer_0": 32,
+        "layer_1": 8, 
+        "layer_2": 32,
+        "grad_norm": 4.81676751697978,
+        "num_bases": 20,
+        "model_name": "rgcn",
+        "learning_rate": 0.000479221480587765,
+        "mlp_out_layer": 16,
+        "conv_layer_num": 2,
+        "regularization": 1.5994591918278636e-05
+      },
 
-  "Compound-Gene": {
-    "rgcn": {
-      "conv_layer_num":3,
-      "layer_0":16,
-      "layer_1":64,
-      "layer_2":64,
-      "mlp_out_layer":8,
-      "learning_rate":0.01,
-      "num_bases":50,
-      "grad_norm":0.6,
-      "regularization":0.008
-    },
-    "rgat": {
-      "conv_layer_num":1,
-      "layer_0":10,
-      "layer_1":5,
-      "mlp_out_layer":40,
-      "learning_rate":0.01,
-      "num_bases":16,
-      "grad_norm":1,
-      "regularization":0.01
-    },
-    "compgcn": {
-      "conv_layer_num":3,
-      "dropout":0.6,
-      "layer_0":16,
-      "layer_1":32,
-      "layer_2":8,
-      "mlp_out_layer":16,
-      "learning_rate":0.02,
-      "opn":"corr",
-      "grad_norm":0.9,
-      "regularization":9e-05
-    }
-  },
-
-  "pathogen32-cmp-gene":
-  {   
-    "rgcn": {
-      "conv_layer_num": 3,
-      "layer_0": 64,
-      "layer_1": 16, 
-      "layer_2": 64,
-      "mlp_out_layer": 8,
-      "learning_rate": 0.005310199838324715,
-      "num_bases": 10,
-      "grad_norm": 3.960668787849768,
-      "regularization": 0.00021175183755931665
-    },
 
     "rgat": {},
+
     "compgcn": {
-      "conv_layer_num":3,
-      "dropout":0.6,
-      "layer_0":16,
-      "layer_1":32,
-      "layer_2":8,
-      "mlp_out_layer":16,
-      "learning_rate":0.02,
-      "opn":"corr",
-      "grad_norm":0.9,
-      "regularization":9e-05
+      "conv_layer_num": 3,
+      "dropout": 0.49576013566205784,
+      "layer_0": 8,
+      "layer_1": 32,
+      "layer_2": 64,
+      "mlp_out_layer": 32,
+      "learning_rate": 0.00019390873242212473,
+      "opn": "sub",
+      "grad_norm": 1.056740604005027,
+      "regularization": 0.0017364783276804412
     }
+
   },
 
   "default": {
@@ -135,6 +66,77 @@
       "grad_norm":0.9,
       "regularization":9e-05
     }
+  },
 
+  "DRKG-reduced": {
+    "rgcn": {
+      "conv_layer_num":3,
+      "layer_0":16,
+      "layer_1":64,
+      "layer_2":64,
+      "mlp_out_layer":8,
+      "learning_rate":0.01,
+      "num_bases":50,
+      "grad_norm":0.6,
+      "regularization":0.008
+    },
+    "rgat": {
+      "conv_layer_num":1,
+      "layer_0":10,
+      "layer_1":5,
+      "mlp_out_layer":40,
+      "learning_rate":0.01,
+      "num_bases":16,
+      "grad_norm":1,
+      "regularization":0.01
+    },
+    "compgcn": {
+      "conv_layer_num":3,
+      "dropout":0.6,
+      "layer_0":16,
+      "layer_1":32,
+      "layer_2":8,
+      "mlp_out_layer":16,
+      "learning_rate":0.02,
+      "opn":"corr",
+      "grad_norm":0.9,
+      "regularization":9e-05
+    }
+  },
+
+  "DRKG": {
+    "rgcn": {
+      "conv_layer_num":3,
+      "layer_0":16,
+      "layer_1":64,
+      "layer_2":64,
+      "mlp_out_layer":8,
+      "learning_rate":0.01,
+      "num_bases":50,
+      "grad_norm":0.6,
+      "regularization":0.008
+    },
+    "rgat": {
+      "conv_layer_num":1,
+      "layer_0":10,
+      "layer_1":5,
+      "mlp_out_layer":40,
+      "learning_rate":0.01,
+      "num_bases":16,
+      "grad_norm":1,
+      "regularization":0.01
+    },
+    "compgcn": {
+      "conv_layer_num":3,
+      "dropout":0.6,
+      "layer_0":16,
+      "layer_1":32,
+      "layer_2":8,
+      "mlp_out_layer":16,
+      "learning_rate":0.02,
+      "opn":"corr",
+      "grad_norm":0.9,
+      "regularization":9e-05
+    }
   }
 }
