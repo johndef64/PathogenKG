@@ -91,23 +91,31 @@ compgcn:{
 'regularization': 0.0017364783276804412
 }
 
+
 rgcn:
-Migliore: comic-sweep-17 (ID: v4souh00)
+Migliore: legendary-sweep-187 (ID: 8hvobrtt)
+Best run: legendary-sweep-187 (ID: 8hvobrtt)
+AUROC: val=0.498, test=0.529
+AUPRC: val=0.566, test=0.565
+MRR: test=0.833
 Config: 
 {'layer_0': 32, 
-'layer_1': 8, 
-'layer_2': 32, 
-'grad_norm': 4.81676751697978, 
-'num_bases': 20, 
-'model_name': 'rgcn', 
-'learning_rate': 0.000479221480587765, 
-'mlp_out_layer': 16, 
-'conv_layer_num': 2, 
-'regularization': 1.5994591918278636e-05}
-Best run: comic-sweep-17 (ID: v4souh00)
-AUROC: val=0.514, test=0.637
-AUPRC: val=0.550, test=0.660
-MRR: test=0.531
+'layer_1': 16, 
+'layer_2': 8, 
+'grad_norm': 2.664619057620471, 
+'num_bases': 30, 
+'model_name': 'rgcn',
+ 'learning_rate': 0.00016364376397721685, 
+ 'mlp_out_layer': 32, 'conv_layer_num': 3, 
+ 'regularization': 0.0024514218302963153}
+
+
+ {'_runtime': 49, '_step': 40,  '_timestamp': 1772134444.859578, 
+   '_wandb': {'runtime': 49}, 'epoch': 200, 
+   'final_mixed_metric': 0.6650137789154118, 
+   'test_auprc': 0.5646539330482483, 
+   'test_auroc': 0.5290942823410356, 
+   'test_hits@1': 0.75, 'test_hits@10': 1, 'test_hits@3': 1, 'test_mrr': 0.8333333730697632, 'train_auprc': 0.9669190049171448, 'train_auroc': 0.970001670750724, 'train_loss': 0.02603209018707275, 'val_auprc': 0.565815806388855, 'val_auroc': 0.4983563445101907, 'val_loss': 0.05378896743059158, 'val_mixed_metric': 0.3766794089891658, 'val_mrr': 0.12670454382896423}
 """
 
 #%%

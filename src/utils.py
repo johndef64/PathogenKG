@@ -23,7 +23,7 @@ def set_seed(seed=42):
 
 	if torch.cuda.is_available():
 		torch.cuda.manual_seed(seed)
-		torch.cuda.manual_seed_all(seed)  
+		torch.cuda.manual_seed_all(seed)
 
 # Utility Functions to exrtact the LCC from the DRKG
 class UnionFind:
@@ -399,7 +399,7 @@ def entities2id(edge_index, node_features_per_type):
 
 def entities2id_offset(edge_index, node_features_per_type, quiet=False):
 	# create a dictionary that maps the entities to an integer id
-	entities = set(edge_index["head"]).union(set(edge_index["tail"]))
+	entities = sorted(set(edge_index["head"]).union(set(edge_index["tail"])))
 	entities2id = {}
 	all_nodes_per_type = {}
 	
@@ -408,20 +408,26 @@ def entities2id_offset(edge_index, node_features_per_type, quiet=False):
 			all_nodes_per_type[x.split("::")[0]] = [x]
 		else:
 			all_nodes_per_type[x.split("::")[0]].append(x)
+
+	# Ensure deterministic node ordering per type.
+	for node_type in all_nodes_per_type:
+		all_nodes_per_type[node_type] = sorted(all_nodes_per_type[node_type])
 	
 	if not quiet:
-		for node_type, nodes in all_nodes_per_type.items():
+		for node_type in sorted(all_nodes_per_type):
+			nodes = all_nodes_per_type[node_type]
 			print(colored(f'	[{node_type}] count: {len(nodes)}', 'green'))
 
 	offset = 0
-	for node_type, features in node_features_per_type.items():
+	for node_type in sorted(node_features_per_type):
+		features = node_features_per_type[node_type]
 		if features is None:
 			for idx, node in enumerate(all_nodes_per_type[node_type]):
 				entities2id[node] = idx + offset
 			offset += len(all_nodes_per_type[node_type])
 			continue
 		
-		all_edge_index_nodes = [ x for x in features.id.values if x in all_nodes_per_type[node_type]]
+		all_edge_index_nodes = sorted([x for x in features.id.values if x in all_nodes_per_type[node_type]])
 
 		for idx, node in enumerate(all_edge_index_nodes):
 			entities2id[node] = idx + offset
@@ -575,7 +581,7 @@ def negative_sampling(target_triplets, negative_rate=1):
 	samples = torch.cat([torch.tensor(target_triplets), neg_samples], dim=0)
 	return samples, labels
 
-def negative_sampling_filtered(
+def negative_sampling_filtered_old(
 	target_triplets,
 	negative_rate=1,
 	all_true_triplets=None,
@@ -662,6 +668,116 @@ def negative_sampling_filtered(
 	if debug:
 		print(f"Generated {neg_num} negative samples for {pos_num} positives.")
 	return samples, labels
+
+
+def negative_sampling_filtered(
+    target_triplets,
+    all_entities,           # tutti i nodi del grafo (array di id)
+    negative_rate=1,
+    all_true_triplets=None, # tutti i 4.1M edge per filtrare falsi negativi
+    seed=42,
+    max_attempts_per_negative=50,
+    debug=False
+):
+    """
+    Correct negative sampling for KG link prediction.
+
+    Key fixes vs previous versions:
+    - uses all_entities (full graph node set) instead of inferring from target_triplets
+    - filters false negatives using all_true_triplets
+    - type-constrained: only perturbs head with valid heads, tail with valid tails
+    """
+    target_triplets = np.asarray(target_triplets, dtype=np.int64)
+    if target_triplets.ndim != 2 or target_triplets.shape[1] != 3:
+        raise ValueError("target_triplets must have shape (N, 3)")
+    if target_triplets.shape[0] == 0:
+        return torch.empty((0, 3), dtype=torch.long), torch.empty((0,), dtype=torch.float)
+
+    neg_rate = int(negative_rate)
+    rng = np.random.default_rng(seed)
+    pos_num = target_triplets.shape[0]
+    neg_num = pos_num * neg_rate
+
+    # --- FIX 1: usa tutte le entità del grafo ---
+    all_entities = np.asarray(all_entities, dtype=np.int64)
+
+    # --- FIX 2: costruisci il set di tutti i triplet veri per filtrare falsi negativi ---
+    true_set = set(map(tuple, target_triplets.tolist()))
+    if all_true_triplets is not None:
+        all_true_arr = np.asarray(all_true_triplets, dtype=np.int64)
+        if all_true_arr.ndim == 2 and all_true_arr.shape[1] == 3:
+            true_set.update(map(tuple, all_true_arr.tolist()))
+
+    # --- FIX 3: type-constrained sampling ---
+    # Per relazioni Compound-TARGET-ExtGene ha senso perturbare:
+    # - la testa solo con altri Compound
+    # - la coda solo con altri ExtGene
+    # Inferisce i candidati validi per testa e coda dalla relazione
+    heads_by_rel = {}
+    tails_by_rel = {}
+    if all_true_triplets is not None:
+        all_true_arr = np.asarray(all_true_triplets, dtype=np.int64)
+        for h, r, t in all_true_arr:
+            heads_by_rel.setdefault(int(r), set()).add(int(h))
+            tails_by_rel.setdefault(int(r), set()).add(int(t))
+    for h, r, t in target_triplets:
+        heads_by_rel.setdefault(int(r), set()).add(int(h))
+        tails_by_rel.setdefault(int(r), set()).add(int(t))
+    # converti in array per np.choice
+    heads_by_rel = {r: np.array(list(v), dtype=np.int64) for r, v in heads_by_rel.items()}
+    tails_by_rel = {r: np.array(list(v), dtype=np.int64) for r, v in tails_by_rel.items()}
+
+    neg_samples = np.empty((neg_num, 3), dtype=np.int64)
+    filled = 0
+
+    for i in range(pos_num):
+        h, r, t = target_triplets[i]
+        r_int = int(r)
+
+        # candidati type-constrained, fallback a all_entities
+        head_candidates = heads_by_rel.get(r_int, all_entities)
+        tail_candidates = tails_by_rel.get(r_int, all_entities)
+
+        for _ in range(neg_rate):
+            candidate = None
+            for _attempt in range(max_attempts_per_negative):
+                if rng.random() > 0.5:
+                    new_h = int(rng.choice(head_candidates))
+                    candidate = (new_h, r_int, int(t))
+                else:
+                    new_t = int(rng.choice(tail_candidates))
+                    candidate = (int(h), r_int, new_t)
+
+                if candidate not in true_set:
+                    break
+                candidate = None  # era un falso negativo, riprova
+
+            if candidate is None:
+                # fallback: usa il positivo stesso (non ideale ma evita crash)
+                # in pratica non dovrebbe mai accadere con pool grandi
+                candidate = (int(h), r_int, int(t))
+                if debug:
+                    print(f"[WARN] Could not find valid negative for triplet {i} after {max_attempts_per_negative} attempts")
+
+            neg_samples[filled] = candidate
+            filled += 1
+
+    samples = torch.cat([
+        torch.tensor(target_triplets, dtype=torch.long),
+        torch.tensor(neg_samples, dtype=torch.long),
+    ], dim=0)
+
+    labels = torch.zeros(samples.shape[0], dtype=torch.float)
+    labels[:pos_num] = 1.0
+
+    if debug:
+        print(f"[negative_sampling] {pos_num} positives, {neg_num} negatives generated")
+        print(f"  Head candidates for rel {r_int}: {len(head_candidates)}")
+        print(f"  Tail candidates for rel {r_int}: {len(tail_candidates)}")
+
+    return samples, labels
+
+
 
 def triple_sampling(target_triplet, val_size, test_size, quiet=True, seed=42):
 	val_len = len(target_triplet) * val_size

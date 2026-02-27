@@ -1,5 +1,6 @@
 #%%
 import gc
+import copy
 import json
 import tempfile
 from pathlib import Path
@@ -200,11 +201,14 @@ def train_model():
         optimizer = torch.optim.Adam(model.parameters(), lr=fixed_params["learning_rate"])
 
         best_mixed_metric = -float("inf")
+        best_model_state = None
         patience_trigger = 0
         last_val_metric = -float("inf")
 
         for epoch in range(1, epochs + 1):
-            training_triplets, train_labels = negative_sampler(train_triplets, int(negative_rate))
+            training_triplets, train_labels = negative_sampler(
+                train_triplets, int(negative_rate), seed=seed + epoch
+            )
             training_triplets, train_labels = training_triplets.to(device), train_labels.to(device)
 
             train_metrics = train(
@@ -223,7 +227,9 @@ def train_model():
             )
 
             if epoch % evaluate_every == 0:
-                validation_triplets, val_labels = negative_sampler(val_triplets, int(negative_rate))
+                validation_triplets, val_labels = negative_sampler(
+                    val_triplets, int(negative_rate), seed=seed + 10_000 + epoch
+                )
                 validation_triplets, val_labels = validation_triplets.to(device), val_labels.to(device)
 
                 val_metrics = test(
@@ -264,13 +270,19 @@ def train_model():
 
                 if mixed_metric > best_mixed_metric:
                     best_mixed_metric = mixed_metric
+                    best_model_state = copy.deepcopy(model.state_dict())
                     patience_trigger = 0
                 else:
                     patience_trigger += 1
                     if patience_trigger >= patience:
                         break
 
-        testing_triplets, test_labels = negative_sampler(test_triplets, int(negative_rate))
+        if best_model_state is not None:
+            model.load_state_dict(best_model_state)
+
+        testing_triplets, test_labels = negative_sampler(
+            test_triplets, int(negative_rate), seed=seed + 20_000
+        )
         testing_triplets, test_labels = testing_triplets.to(device), test_labels.to(device)
 
         test_metrics = test(

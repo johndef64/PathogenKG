@@ -1,7 +1,7 @@
 {
 
   "pathogen32-cmp-gene": {   
-    "rcgn":{
+    "rcgn_old":{
         "layer_0": 32,
         "layer_1": 8, 
         "layer_2": 32,
@@ -13,7 +13,19 @@
         "conv_layer_num": 2,
         "regularization": 1.5994591918278636e-05
       },
-
+      "rgcn":{
+      "layer_0": 32, 
+      "layer_1": 16, 
+      "layer_2": 8, 
+      "grad_norm": 2.664619057620471, 
+      "num_bases": 30, 
+      "model_name": "rgcn", 
+      "learning_rate": 0.0001636437697721685,
+       "mlp_out_layer": 32, 
+      "conv_layer_num": 3, 
+      "regularization": 0.0024514218302963153
+    },
+  
 
     "rgat": {},
 
