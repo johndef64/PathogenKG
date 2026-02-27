@@ -779,7 +779,7 @@ def negative_sampling_filtered(
 
 
 
-def triple_sampling(target_triplet, val_size, test_size, quiet=True, seed=42):
+def triple_sampling_basic(target_triplet, val_size, test_size, quiet=True, seed=42):
 	val_len = len(target_triplet) * val_size
 	# split the data into training, testing, and validation 
 	temp_data, test_data = train_test_split(target_triplet, test_size=test_size, random_state=seed, shuffle=True)
@@ -791,6 +791,65 @@ def triple_sampling(target_triplet, val_size, test_size, quiet=True, seed=42):
 		print(f"\tValidation set shape: {len(val_data)}" )
 		print(f"\tTesting set shape: {len(test_data)}\n")
 	return train_data, val_data, test_data
+
+
+def triple_sampling(target_triplet, val_size, test_size, quiet=True, seed=42):
+    """
+    Split stratificato per gene (coda della relazione TARGET).
+    Garantisce che ogni gene con >= 2 edge abbia almeno un edge nel train.
+    Geni con un solo edge vanno sempre nel train.
+
+	La prima è attesa e corretta: lo split stratificato ha messo nel test set 
+	solo geni con ≥2 TARGET edges, eliminando i casi "facili" dove il modello 
+	poteva sfruttare geni molto connessi. Il task è genuinamente più difficile.
+    """
+    target_triplet = list(target_triplet)
+    
+    # raggruppa per gene (tail = colonna 2)
+    from collections import defaultdict
+    tail_to_triplets = defaultdict(list)
+    for triplet in target_triplet:
+        tail = triplet[2]  # ExtGene id
+        tail_to_triplets[tail].append(triplet)
+    
+    train_data, val_data, test_data = [], [], []
+
+    for tail, triplets in tail_to_triplets.items():
+        if len(triplets) == 1:
+            # geni con un solo edge: sempre in train, non valutabili
+            train_data.extend(triplets)
+        elif len(triplets) == 2:
+            # uno in train, uno in test
+            train_data.append(triplets[0])
+            test_data.append(triplets[1])
+        else:
+            # split normale ma garantendo almeno 1 in train
+            temp, test = train_test_split(triplets, test_size=test_size, random_state=seed)
+            if len(temp) == 1:
+                train_data.extend(temp)
+            else:
+                val_len = max(1, round(len(temp) * val_size))
+                train, val = train_test_split(temp, test_size=val_len/len(temp), random_state=seed)
+                train_data.extend(train)
+                val_data.extend(val)
+            test_data.extend(test)
+
+    if not quiet:
+        print(f"Total number of target edges: {len(target_triplet)}")
+        print(f"\tTraining set shape: {len(train_data)}")
+        print(f"\tValidation set shape: {len(val_data)}")
+        print(f"\tTesting set shape: {len(test_data)}\n")
+        
+        # mostra quanti geni sono solo in train
+        train_tails = set(t[2] for t in train_data)
+        test_tails = set(t[2] for t in test_data)
+        only_train = train_tails - test_tails
+        print(f"\tGeni solo in train (non valutabili): {len(only_train)}")
+
+    return train_data, val_data, test_data
+
+
+
 
 def flat_index(triplets, num_nodes):
 	fr, to = triplets[:, 0]*num_nodes, triplets[:, 2]
@@ -922,3 +981,40 @@ def evaluation_metrics(model, embeddings, all_target_triplets, test_triplet, num
 			avg_count = torch.sum((ranks <= hit))/ranks.size(0)
 			hits[hit] = avg_count.item()
 	return mrr.item(), hits #, auroc, auprc
+
+
+def evaluation_metrics_variant(model, embeddings, all_graph_nodes, test_triplet, num_generate, device, hits=[1,3,10]):
+    # all_graph_nodes: torch.arange(num_nodes) — tutti i nodi del grafo
+    unique_nodes = all_graph_nodes if isinstance(all_graph_nodes, torch.Tensor) else torch.tensor(all_graph_nodes)
+    if num_generate > unique_nodes.size(0):
+        print(f"[ERROR] requested more triplets than available nodes")
+    with torch.no_grad():
+        for head in [True, False]:
+            generator = torch.Generator().manual_seed(42)
+            random_indices = torch.randperm(unique_nodes.size(0), generator=generator)[:num_generate]
+            selected_nodes = unique_nodes[random_indices].view(1, -1)  # <-- unica modifica: forza shape (1, num_generate) per torch.tile
+            if head:
+                head_rel = test_triplet[:, :2]
+                head_rel = torch.repeat_interleave(head_rel, num_generate, dim=0)
+                target_tails = torch.tile(selected_nodes, (test_triplet.size(0), 1)).view(-1, 1)
+                mrr_triplets = torch.cat((head_rel, target_tails), dim=-1)
+            else:
+                rel_tail = test_triplet[:, 1:]
+                rel_tail = torch.repeat_interleave(rel_tail, num_generate, dim=0)
+                target_heads = torch.tile(selected_nodes, (test_triplet.size(0), 1)).view(-1, 1)
+                mrr_triplets = torch.cat((target_heads, rel_tail), dim=-1)
+            mrr_triplets = mrr_triplets.view(test_triplet.size(0), num_generate, 3)
+            mrr_triplets = torch.cat((mrr_triplets, test_triplet.view(-1, 1, 3)), dim=1)
+            scores = model.distmult(embeddings, mrr_triplets.view(-1, 3)).view(test_triplet.size(0), num_generate + 1)
+            _, ranks = torch.sort(scores, descending=True)
+            if head:
+                ranks_s = ranks[:, -1]
+            else:
+                ranks_o = ranks[:, -1]
+        ranks = torch.cat([ranks_s, ranks_o]) + 1
+        mrr = torch.mean(1.0 / ranks)
+        hits = {at: 0 for at in hits}
+        for hit in hits:
+            avg_count = torch.sum((ranks <= hit)) / ranks.size(0)
+            hits[hit] = avg_count.item()
+    return mrr.item(), hits

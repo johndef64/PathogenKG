@@ -390,7 +390,9 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
 
     scores = torch.sigmoid(scores)
   
-  mrr,hits = evaluation_metrics(model, out, train_val_triplets, target_triplets[target_labels.to(torch.int).view(-1)], 20, 0, hits=[1,3,10])
+
+  mrr,hits = evaluation_metrics(model, out, train_val_triplets, target_triplets[...], 20, 0, hits=[1,3,10])
+
 
   metrics["Loss"]   = loss.item()
   metrics["MRR"]    = mrr
