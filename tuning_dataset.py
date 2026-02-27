@@ -130,11 +130,13 @@ def create_compgcn_from_params(params, in_channels_dict, num_nodes_per_type, num
         opn=params["opn"],
     )
 
-
+import random
 def train_model():
     wandb.init()
     config = wandb.config
     dataset_variant = config.dataset_variant
+    random_alphanum_quadruplet = ''.join(random.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=4))
+    wandb.run.name = f"{dataset_variant}-run-{random_alphanum_quadruplet}"
 
     fixed_params = load_fixed_compgcn_params()
 
