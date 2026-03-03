@@ -33,7 +33,7 @@ import torch.nn.functional as F
 from torcheval.metrics.functional import binary_auprc, binary_auroc
 
 from src.utils import load_data, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
-                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, add_self_loops, evaluation_metrics, get_edge_type
+                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics, get_edge_type
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
@@ -42,10 +42,11 @@ from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
 BASE_SEED = 42
 
 # Dataset path
-dataset = 'PathogenKG_n19.tsv'
+dataset = 'PathogenKG_n34_core.tsv.zip'
 DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+USE_ALTERNATIVE_NEG_SAMPLING = True
 
 def _resolve_dataset_path(tsv_path: str) -> str:
   """Risolve e valida il path del dataset."""
@@ -445,11 +446,19 @@ def main_eval(model_path, model_name, dataset_tsv, task, validation_size, test_s
   
   metrics = None
   
+  # --- preparazione parametri per neg sampling corretto ---
+  all_entities_arr = np.arange(num_entities)
+  all_true_arr = train_val_test_triplets.cpu().numpy()
+
   # Valutazione sul test set (se richiesto)
   if not ranking_only:
     print('[i] Valutazione sul test set...')
     with torch.no_grad():
-      testing_triplets, test_labels = negative_sampling(test_triplets, negative_rate)
+      if not USE_ALTERNATIVE_NEG_SAMPLING:
+        testing_triplets, test_labels = negative_sampling(test_triplets, negative_rate)
+      else:
+        testing_triplets, test_labels = negative_sampling_filtered(test_triplets, all_entities_arr, negative_rate, all_true_arr, seed=BASE_SEED + 2000)
+        
       testing_triplets, test_labels = testing_triplets.to(device), test_labels.to(device)
       
       metrics = test(

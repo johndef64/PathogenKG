@@ -42,9 +42,8 @@ DATASET_VARIANTS = [
 ]
 
 GO_RELATIONS = {"BiologicalProcess", "CellularComponent", "MolecularFunction"}
-# get simple ranfom seed
-rand = random.Random() 
-BASE_SEED = rand.randint(0, 1000000) #42
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 negative_sampler = negative_sampling_filtered
 
@@ -163,6 +162,8 @@ def train_model():
     gamma = 3.0
     alpha_adv = 2.0
 
+    rand = random.Random() 
+    BASE_SEED = rand.randint(0, 1000000) #42
     seed = BASE_SEED
     set_seed(seed)
 

@@ -688,7 +688,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
         if not USE_ALTERNATIVE_NEG_SAMPLING:
           training_triplets, train_labels = neg_sampler(train_triplets, negative_rate)
         else:
-           training_triplets, train_labels = neg_sampler(train_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + epoch)
+          training_triplets, train_labels = neg_sampler(train_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + epoch)
 
         training_triplets, train_labels = training_triplets.to(device), train_labels.to(device)
         # Train
@@ -757,7 +757,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
           if not USE_ALTERNATIVE_NEG_SAMPLING:
             testing_triplets, test_labels = neg_sampler(test_triplets, negative_rate)
           else:
-             testing_triplets, test_labels = neg_sampler(test_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + 2000)
+            testing_triplets, test_labels = neg_sampler(test_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + 2000)
 
           testing_triplets, test_labels = testing_triplets.to(device), test_labels.to(device)
           metrics = test(
