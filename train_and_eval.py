@@ -61,7 +61,7 @@ import torch.nn.functional as F
 from torcheval.metrics.functional import binary_auprc, binary_auroc
 
 from src.utils import set_seed, load_data, select_target_triplets, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
-                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics
+                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics, evaluation_metrics_full
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
@@ -77,6 +77,20 @@ DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEBUG = False
+USE_ALTERNATIVE_NEG_SAMPLING = True
+"""
+Se True, usa negative_sampling_filtered con:
+- all_entities_arr: tutti i nodi del grafo (np.arange(num_entities)) invece di inferire
+  le entità solo dai target triplets — fix al bug principale che causava alta varianza
+- all_true_arr: tutti i triplet veri (train+val+test) per filtrare i falsi negativi
+- type-constrained sampling: perturba la testa solo con Compound validi e la coda
+  solo con ExtGene validi per la relazione TARGET, rendendo i negativi biologicamente
+  plausibili e il task genuinamente difficile
+- seed deterministico per val e test (fisso per run), variabile per train (seed+epoch)
+  così ogni epoca vede negativi diversi ma la valutazione è comparabile tra run
+
+Se False, usa negative_sampling standard (bug originale, mantenuto per confronto).
+"""
 
 def _resolve_dataset_path(tsv_path: str) -> str:
   resolved = os.path.normpath(tsv_path)
@@ -391,8 +405,25 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
     scores = torch.sigmoid(scores)
   
 
-  mrr,hits = evaluation_metrics(model, out, train_val_triplets, target_triplets[...], 20, 0, hits=[1,3,10])
+  # Subito prima della chiamata evaluation_metrics in test()
+  src, _, dst = train_val_triplets.T
+  unique_nodes = torch.unique(torch.cat((src, dst)))
+  print(f"[DEBUG] unique_nodes: {unique_nodes.size(0)}, train_val_triplets shape: {train_val_triplets.shape}, device: {train_val_triplets.device}")
+  
+  mrr, hits = evaluation_metrics(model, out, train_val_triplets, target_triplets[...], 20, 0, hits=[1,3,10])
 
+  # # aggiungi MRR affidabile solo sul test set finale
+  # all_graph_nodes = torch.arange(num_entities)
+  # mrr_full, hits_full = evaluation_metrics_full(
+  #     model, 
+  #     model(flattened_features_per_type, train_index),  # ricalcola embeddings
+  #     all_graph_nodes,
+  #     testing_triplets[test_labels.bool()],  # solo i positivi
+  #     device,
+  #     hits=[1, 3, 10]
+  # )
+
+  # print(f"MRR (full graph): {mrr_full:.3f}, Hits@10 (full graph): {hits_full[10]:.3f}")
 
   metrics["Loss"]   = loss.item()
   metrics["MRR"]    = mrr
@@ -539,7 +570,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
   all_run_metrics = []
 
   # Select negative sampler without shadowing imported function names.
-  if args.negative_sampling == 'filtered':
+  if args.negative_sampling == 'filtered' and USE_ALTERNATIVE_NEG_SAMPLING:
     print("[i] Using filtered negative sampling (only non-target edges) for training.")
     neg_sampler = negative_sampling_filtered
   else:
@@ -610,7 +641,11 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
     train_val_triplets, test_triplets, train_val_test_triplets, \
     edge_index, ent2id, relation2id = get_dataset(dataset_tsv, task, validation_size, test_size, quiet, \
                             random_seed, oversample_rate, undersample_rate)
-    
+  
+    # --- preparazione parametri per neg sampling corretto ---
+    all_entities_arr = np.arange(num_entities)
+    all_true_arr = train_val_test_triplets.cpu().numpy()
+      
     end_time_dataset = round(time.time() - start_time_dataset, 2)
     # print(f'ok ({end_time_dataset} seconds)')
     
@@ -650,7 +685,11 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
     best_model_found  = False
     with trange(1, (epochs + 1), desc=f'Run {i} | Epochs', position=0) as epochs_tqdm:
       for epoch in epochs_tqdm:
-        training_triplets, train_labels = neg_sampler(train_triplets, negative_rate)
+        if not USE_ALTERNATIVE_NEG_SAMPLING:
+          training_triplets, train_labels = neg_sampler(train_triplets, negative_rate)
+        else:
+           training_triplets, train_labels = neg_sampler(train_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + epoch)
+
         training_triplets, train_labels = training_triplets.to(device), train_labels.to(device)
         # Train
         train_metrics = train(
@@ -669,7 +708,11 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
           )
         # Validate
         if epoch%evaluate_every==0:
-          validation_triplets, val_labels = neg_sampler(val_triplets, negative_rate)
+          if not USE_ALTERNATIVE_NEG_SAMPLING:
+             validation_triplets, val_labels = neg_sampler(val_triplets, negative_rate)
+          else:
+             validation_triplets, val_labels = neg_sampler(val_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + 1000)
+
           validation_triplets, val_labels = validation_triplets.to(device), val_labels.to(device)
           val_metrics = test(
             model,
@@ -711,7 +754,11 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
       # Test best model
       model.eval()
       with torch.no_grad():    
-          testing_triplets, test_labels = neg_sampler(test_triplets, negative_rate)
+          if not USE_ALTERNATIVE_NEG_SAMPLING:
+            testing_triplets, test_labels = neg_sampler(test_triplets, negative_rate)
+          else:
+             testing_triplets, test_labels = neg_sampler(test_triplets, all_entities_arr, negative_rate, all_true_arr, seed=random_seed + 2000)
+
           testing_triplets, test_labels = testing_triplets.to(device), test_labels.to(device)
           metrics = test(
             model,
@@ -798,6 +845,7 @@ if __name__ == '__main__':
   parser.add_argument('--alpha', type=float, default=0.25, help='Alpha value of the focal loss')
   parser.add_argument('--gamma', type=float, default=3.0, help='Gamma value of the focal loss')
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
+  parser.add_argument('--dry_run', action='store_true', help='If set, the ablation study will not save models or rankings, and will skip final evaluation.')
 
   # add task as argument
   parser.add_argument('--task', type=str, 
@@ -833,19 +881,22 @@ if __name__ == '__main__':
   print(f'[i] Using dataset: {dataset_name}')
 
 
-  time_stamp      = time.strftime('%Y%m%d_%H%M%S')
-  task            = args.task
-  task_clean      = task.lower().replace('-', '_').replace(',', '_')
-  folder_name = task_clean + '_' + dataset_name + '_' + time_stamp
-  model_save_dir = os.path.join('models', folder_name)
-  os.makedirs(model_save_dir, exist_ok=True)
-  model_save_path = os.path.join(model_save_dir, f'{model.lower()}.pt')
+  if args.dry_run:
+      print("[i] Dry run enabled: models and rankings will not be saved, and final evaluation will be skipped.")
+      model_save_path = None  # No saving
+  else:
+    time_stamp      = time.strftime('%Y%m%d_%H%M%S')
+    task            = args.task
+    task_clean      = task.lower().replace('-', '_').replace(',', '_')
+    folder_name = task_clean + '_' + dataset_name + '_' + time_stamp
+    model_save_dir = os.path.join('models', folder_name)
+    os.makedirs(model_save_dir, exist_ok=True)
+    model_save_path = os.path.join(model_save_dir, f'{model.lower()}.pt')
 
-  # save parameters used for the run
-  params_save_path = model_save_path.replace('.pt', '_params.json')
-  with open(params_save_path, 'w') as f:
-      json.dump(vars(args), f, indent=4)
-
+    # save parameters used for the run
+    params_save_path = model_save_path.replace('.pt', '_params.json')
+    with open(params_save_path, 'w') as f:
+        json.dump(vars(args), f, indent=4)
 
   if not quiet: print(f'Running training of model: {model}, runs: {runs} | device: {device}')
 

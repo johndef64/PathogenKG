@@ -20,28 +20,28 @@ from train_and_eval import (
 )
 
 # WandB configuration
-PROJECT_NAME = "PathogenKG-dataset-compgcn-ablation-neg-fix"
+PROJECT_NAME = "DRKG-compgcn-ablation-neg-fix"
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"
 # # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
-BASE_TSV_PATH = "dataset/PathogenKG_n34_core.tsv.zip"
+BASE_TSV_PATH = "dataset/drkg/drkg_reduced.zip"
 MODELS_PARAMS_PATH = "src/models_params.json"
 MODELS_PARAMS_SWEEP_KEY = "pathogen32-cmp-gene-neg-fix"
 MODELS_PARAMS_MODEL_KEY = "compgcn"
 USE_ALTERNATIVE_NEG_SAMPLING = True  
-RUN_NUMBER = 3
+RUN_NUMBER = 6
 
 
 DATASET_VARIANTS = [
     "full_dataset",
-    "noCOG",
-    "noGO",
-    "noCOG_GO",
-    "noGO_BP",
-    "noGO_CC",
-    "noGO_MF",
+    "noRegulation",
+    "noAnatomy",
+    "noDisease",
+    "noSideEffect",
+    "noContext",
+    "noContext_DDI",
 ]
 
-GO_RELATIONS = {"BiologicalProcess", "CellularComponent", "MolecularFunction"}
+
 # get simple ranfom seed
 rand = random.Random() 
 BASE_SEED = rand.randint(0, 1000000) #42
@@ -89,21 +89,70 @@ def _load_base_triples(tsv_path: str) -> pd.DataFrame:
     return df[["head", "interaction", "tail"]].copy()
 
 
+# Relazioni raggruppate per categoria funzionale in DRKG
+# (analogo a come COG/GO funzionano in PathogenKG)
+
+REGULATION_RELATIONS = [
+    "REGULATION", "UPREGULATION", "DOWNREGULATION",
+    "EXPRESSION", "ACTIVATION", "INHIBITION", "CATALYSIS"
+]
+
+ANATOMY_RELATIONS = [
+    "DlA", "AdG", "AeG"
+]
+
+DISEASE_RELATIONS = [
+    "DrD", "DaG", "DuG", "DdG", "CpD"
+]
+
+SIDE_EFFECT_RELATIONS = [
+    "CcSE"
+]
+
+# Tutte le relazioni "contesto funzionale" (analogo a GO in PathogenKG)
+ALL_CONTEXT_RELATIONS = (
+    REGULATION_RELATIONS + ANATOMY_RELATIONS +
+    DISEASE_RELATIONS + SIDE_EFFECT_RELATIONS
+)
+
+
 def _filter_variant(df: pd.DataFrame, variant: str) -> pd.DataFrame:
+    """Ablation variants for DRKG on CMP_BIND task.
+    
+    Gene-Gene relations are ALWAYS kept (structural backbone).
+    We ablate contextual/annotation layers analogous to PathogenKG's GO/COG ablation.
+    """
+
     if variant == "full_dataset":
         return df
-    if variant == "noCOG":
-        return df[df["interaction"] != "ORTHOLOGY"]
-    if variant == "noGO":
-        return df[~df["interaction"].isin(GO_RELATIONS)]
-    if variant == "noCOG_GO":
-        return df[(df["interaction"] != "ORTHOLOGY") & (~df["interaction"].isin(GO_RELATIONS))]
-    if variant == "noGO_BP":
-        return df[df["interaction"] != "BiologicalProcess"]
-    if variant == "noGO_CC":
-        return df[df["interaction"] != "CellularComponent"]
-    if variant == "noGO_MF":
-        return df[df["interaction"] != "MolecularFunction"]
+
+    # --- Analogo a noGO: rimuovi tutte le relazioni di regolazione ---
+    if variant == "noRegulation":
+        return df[~df["interaction"].isin(REGULATION_RELATIONS)]
+
+    # --- Analogo a noGO_BP: rimuovi anatomy (localizzazione biologica) ---
+    if variant == "noAnatomy":
+        return df[~df["interaction"].isin(ANATOMY_RELATIONS)]
+
+    # --- Analogo a noGO_CC: rimuovi relazioni disease ---
+    if variant == "noDisease":
+        return df[~df["interaction"].isin(DISEASE_RELATIONS)]
+
+    # --- Analogo a noGO_MF: rimuovi side effects ---
+    if variant == "noSideEffect":
+        return df[~df["interaction"].isin(SIDE_EFFECT_RELATIONS)]
+
+    # --- Analogo a noGO (tutte): rimuovi tutto il contesto funzionale ---
+    if variant == "noContext":
+        return df[~df["interaction"].isin(ALL_CONTEXT_RELATIONS)]
+
+    # --- Analogo a noCOG_GO: rimuovi contesto + DDI ---
+    if variant == "noContext_DDI":
+        return df[
+            (~df["interaction"].isin(ALL_CONTEXT_RELATIONS)) &
+            (df["interaction"] != "ddi-interactor-in")
+        ]
+
     raise ValueError(f"Unknown dataset_variant: {variant}")
 
 
@@ -150,7 +199,7 @@ def train_model():
 
     # Fixed training setup
     tsv_path = BASE_TSV_PATH
-    task = "TARGET"
+    task = "CMP_BIND"
     validation_size = 0.1
     test_size = 0.2
     epochs = 200

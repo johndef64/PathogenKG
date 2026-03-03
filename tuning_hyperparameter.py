@@ -2,6 +2,7 @@
 import gc
 import wandb
 import torch
+import numpy as np
 from src.utils import set_seed
 import torch.nn.functional as F
 from train_and_eval import get_dataset, train, test, negative_sampling, negative_sampling_filtered
@@ -68,11 +69,31 @@ SWEEP_CONFIG = {
 	}
 }
 
+SWEEP_CONFIG_NARROWED = {'method': 'bayes',
+ 'metric': {'name': 'val_mixed_metric', 'goal': 'maximize'},
+ 'parameters': {'learning_rate': {'distribution': 'log_uniform_values',
+   'min': 0.0001,
+   'max': 0.01},
+  'regularization': {'distribution': 'log_uniform_values',
+   'min': 1e-06,
+   'max': 0.01},
+  'grad_norm': {'distribution': 'uniform', 'min': 0.5, 'max': 5.0},
+  'dropout': {'distribution': 'uniform', 'min': 0.0162, 'max': 0.6582},
+  'conv_layer_num': {'values': [2, 3]},
+  'mlp_out_layer': {'values': [8, 16, 32, 64]},
+  'layer_0': {'values': [8, 16, 32]},
+  'layer_1': {'values': [16, 32]},
+  'layer_2': {'values': [8, 16, 32]},
+  'num_bases': {'values': [30, 50]},
+  'opn': {'values': ['corr', 'mult', 'sub']}}}
+
+
 # AVAILABLE_MODELS = ['rgcn', 'rgat', 'compgcn']
 # AVAILABLE_MODELS = ['rgat']
 AVAILABLE_MODELS = ['rgcn', 'compgcn']
 AVAILABLE_MODELS = ['compgcn']
 BASE_SEED = 42
+USE_ALTERNATIVE_NEG_SAMPLING = True
 negative_sampling = negative_sampling_filtered  # Use filtered negative sampling for better evaluation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -168,6 +189,7 @@ def train_model():
 	# Set seed for reproducibility
 	seed = BASE_SEED
 	set_seed(seed)
+
 	
 	try:
 		# Load dataset
@@ -181,6 +203,10 @@ def train_model():
 			oversample_rate=oversample_rate,
 			undersample_rate=undersample_rate
 		)
+
+			# preparazione parametri per neg sampling corretto
+		all_entities_arr = np.arange(num_entities)
+		all_true_arr = train_val_test_triplets.cpu().numpy()
 		
 		# Create model with hyperparameters from config
 		model = create_model_from_config(
@@ -219,7 +245,13 @@ def train_model():
 		for epoch in range(1, epochs + 1):
 			# Training
 			train_triplets_np = train_triplets.cpu().numpy() if torch.is_tensor(train_triplets) else train_triplets
-			training_triplets, train_labels = negative_sampling(train_triplets_np, int(negative_rate))
+			if not USE_ALTERNATIVE_NEG_SAMPLING:
+				training_triplets, train_labels = negative_sampling(train_triplets_np, int(negative_rate))
+			else:
+				training_triplets, train_labels = negative_sampling(
+    train_triplets_np, all_entities_arr, int(negative_rate), all_true_arr, seed=seed + epoch)
+
+				
 			training_triplets, train_labels = training_triplets.to(device), train_labels.to(device)
 			
 			train_metrics = train(
@@ -232,7 +264,13 @@ def train_model():
 			# Validation
 			if epoch % evaluate_every == 0:
 				val_triplets_np = val_triplets.cpu().numpy() if torch.is_tensor(val_triplets) else val_triplets
-				validation_triplets, val_labels = negative_sampling(val_triplets_np, int(negative_rate))
+				if not USE_ALTERNATIVE_NEG_SAMPLING:
+					validation_triplets, val_labels = negative_sampling(val_triplets_np, int(negative_rate))
+				else:
+					validation_triplets, val_labels = negative_sampling(
+    val_triplets_np, all_entities_arr, int(negative_rate), all_true_arr, seed=seed + 1000)
+
+					
 				validation_triplets, val_labels = validation_triplets.to(device), val_labels.to(device)
 				
 				val_metrics = test(
@@ -242,7 +280,7 @@ def train_model():
 					train_val_triplets,
 					alpha, gamma, alpha_adv, change_points
 				)
-				
+
 				# Calculate mixed metric
 				mixed_metric = 0.2 * val_metrics["Auroc"] + 0.4 * val_metrics["Auprc"] + 0.4 * val_metrics["MRR"]
 				
@@ -271,7 +309,12 @@ def train_model():
 		
 		# Final test evaluation
 		test_triplets_np = test_triplets.cpu().numpy() if torch.is_tensor(test_triplets) else test_triplets
-		testing_triplets, test_labels = negative_sampling(test_triplets_np, int(negative_rate))
+		if not USE_ALTERNATIVE_NEG_SAMPLING:
+			testing_triplets, test_labels = negative_sampling(test_triplets_np, int(negative_rate))
+		else:
+			testing_triplets, test_labels = negative_sampling(
+    test_triplets_np, all_entities_arr, int(negative_rate), all_true_arr, seed=seed + 2000)
+
 		testing_triplets, test_labels = testing_triplets.to(device), test_labels.to(device)
 		
 		test_metrics = test(

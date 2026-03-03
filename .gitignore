@@ -3,6 +3,7 @@
 wandb/*
 archives/*
 archive/*
+test/*
 
 dataset/uniprot_sprot_fungi.dat.gz
 dataset/uniprot_sprot_human.dat.gz
