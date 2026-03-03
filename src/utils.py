@@ -581,7 +581,7 @@ def negative_sampling(target_triplets, negative_rate=1):
 	samples = torch.cat([torch.tensor(target_triplets), neg_samples], dim=0)
 	return samples, labels
 
-def negative_sampling_filtered_old(
+def negative_sampling_filtered_orignal(
 	target_triplets,
 	negative_rate=1,
 	all_true_triplets=None,
@@ -687,6 +687,8 @@ def negative_sampling_filtered(
     - filters false negatives using all_true_triplets
     - type-constrained: only perturbs head with valid heads, tail with valid tails
     """
+	
+
     target_triplets = np.asarray(target_triplets, dtype=np.int64)
     if target_triplets.ndim != 2 or target_triplets.shape[1] != 3:
         raise ValueError("target_triplets must have shape (N, 3)")
@@ -770,8 +772,10 @@ def negative_sampling_filtered(
     labels = torch.zeros(samples.shape[0], dtype=torch.float)
     labels[:pos_num] = 1.0
 
+
     if debug:
         print(f"[negative_sampling] {pos_num} positives, {neg_num} negatives generated")
+        print(f"  Total unique entities: {len(all_entities)}")
         print(f"  Head candidates for rel {r_int}: {len(head_candidates)}")
         print(f"  Tail candidates for rel {r_int}: {len(tail_candidates)}")
 
@@ -946,7 +950,21 @@ def graph_transform(data):
 	return data
 					  
 def evaluation_metrics(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
+	"""
+    Approximate (sampled) MRR and Hits@k evaluation for KG link prediction.
+
+    For each test triplet (h,r,t), ranks the true entity against a randomly
+    sampled subset of candidate entities (size = num_generate) instead of the
+    full entity set. Both head and tail prediction are evaluated by replacing
+    h or t with sampled nodes and computing DistMult scores.
+
+    This produces a bidirectional *sampled ranking* estimate of MRR/Hits,
+    which is faster and suitable for training monitoring but optimistic and
+    dependent on the sampling size. Results are not directly comparable to
+    standard full-ranking KG benchmarks.
+    """
 	src, _, dst = all_target_triplets.T
+	
 	unique_nodes = torch.unique(torch.cat((src,dst), dim = 0))
 	if num_generate > unique_nodes.size(0):
 		print(f"[ERROR] requested more triplets than available nodes")
@@ -981,6 +999,123 @@ def evaluation_metrics(model, embeddings, all_target_triplets, test_triplet, num
 			avg_count = torch.sum((ranks <= hit))/ranks.size(0)
 			hits[hit] = avg_count.item()
 	return mrr.item(), hits #, auroc, auprc
+
+
+def evaluation_metrics_full(model, embeddings, all_graph_nodes, test_triplet, device, hits=[1,3,10]):
+    """
+    MRR e Hits calcolati su tutti i nodi del grafo.
+    Da chiamare SEPARATAMENTE dopo evaluation_metrics originale.
+    Non sostituisce nulla — è additive.
+    """"""
+    Full-entity MRR and Hits@k evaluation for KG link prediction.
+
+    For each test triplet (h,r,t), ranks the true tail entity against all
+    entities in the graph by scoring (h,r,e) for every e ∈ E. This corresponds
+    to the standard *full ranking* KG evaluation protocol (deterministic and
+    sampling-free), producing the true global rank of the positive triple.
+
+    This implementation evaluates tail prediction only (unidirectional) and
+    therefore yields lower but benchmark-comparable metrics compared to
+    sampled evaluation.
+    """
+    model.eval()
+    unique_nodes = all_graph_nodes.to(device)  # torch.arange(num_entities).to(device)
+    num_generate = unique_nodes.size(0)
+    
+    ranks_list = []
+    
+    with torch.no_grad():
+        for i in range(test_triplet.size(0)):
+            triplet = test_triplet[i]  # (h, r, t)
+            h, r, t = triplet[0], triplet[1], triplet[2]
+            
+            # genera tutti i candidati sostituendo la coda
+            candidates = torch.stack([
+                h.expand(num_generate),
+                r.expand(num_generate),
+                unique_nodes
+            ], dim=1)  # (num_nodes, 3)
+            
+            # aggiungi il positivo vero se non è già tra i candidati
+            scores = torch.sigmoid(model.distmult(embeddings, candidates))  # (num_nodes,)
+            
+            # rank del positivo vero
+            true_score = scores[unique_nodes == t]
+            if true_score.size(0) == 0:
+                continue
+            rank = (scores >= true_score).sum().item()  # quanti hanno score >= del positivo
+            ranks_list.append(rank)
+    
+    if len(ranks_list) == 0:
+        return 0.0, {h: 0.0 for h in hits}
+    
+    ranks_tensor = torch.tensor(ranks_list, dtype=torch.float)
+    mrr = torch.mean(1.0 / ranks_tensor).item()
+    hits_dict = {h: (ranks_tensor <= h).float().mean().item() for h in hits}
+    
+    return mrr, hits_dict
+
+def evaluation_metrics_full_bidirectional(model, embeddings, all_graph_nodes, test_triplet, device, hits=[1,3,10]):
+    """
+    Full-entity bidirectional MRR and Hits@k evaluation for KG link prediction.
+
+    For each test triplet (h,r,t), ranks the true entity against all entities
+    in the graph in both prediction directions:
+        - tail prediction: rank of t among (h,r,e) ∀ e ∈ E
+        - head prediction: rank of h among (e,r,t) ∀ e ∈ E
+
+    This corresponds to the standard full-ranking KG evaluation protocol
+    (sampling-free, global ranking). Metrics are deterministic and directly
+    comparable to KG benchmarks. No filtered setting is applied (raw rank).
+    """
+
+    model.eval()
+    unique_nodes = all_graph_nodes.to(device)
+    num_entities = unique_nodes.size(0)
+
+    ranks = []
+
+    with torch.no_grad():
+        for i in range(test_triplet.size(0)):
+            h, r, t = test_triplet[i]
+
+            # ---------- Tail prediction: (h,r,e) ----------
+            tail_candidates = torch.stack([
+                h.expand(num_entities),
+                r.expand(num_entities),
+                unique_nodes
+            ], dim=1)
+
+            tail_scores = model.distmult(embeddings, tail_candidates)
+            true_tail_score = tail_scores[unique_nodes == t]
+
+            if true_tail_score.numel() > 0:
+                tail_rank = (tail_scores >= true_tail_score).sum().item()
+                ranks.append(tail_rank)
+
+            # ---------- Head prediction: (e,r,t) ----------
+            head_candidates = torch.stack([
+                unique_nodes,
+                r.expand(num_entities),
+                t.expand(num_entities)
+            ], dim=1)
+
+            head_scores = model.distmult(embeddings, head_candidates)
+            true_head_score = head_scores[unique_nodes == h]
+
+            if true_head_score.numel() > 0:
+                head_rank = (head_scores >= true_head_score).sum().item()
+                ranks.append(head_rank)
+
+    if len(ranks) == 0:
+        return 0.0, {k: 0.0 for k in hits}
+
+    ranks_tensor = torch.tensor(ranks, dtype=torch.float, device=device)
+
+    mrr = torch.mean(1.0 / ranks_tensor).item()
+    hits_dict = {k: (ranks_tensor <= k).float().mean().item() for k in hits}
+
+    return mrr, hits_dict
 
 
 def evaluation_metrics_variant(model, embeddings, all_graph_nodes, test_triplet, num_generate, device, hits=[1,3,10]):

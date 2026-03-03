@@ -2,6 +2,7 @@
 .vscode/*
 wandb/*
 archives/*
+archive/*
 
 dataset/uniprot_sprot_fungi.dat.gz
 dataset/uniprot_sprot_human.dat.gz
@@ -49,3 +50,7 @@ dataset/STRING/*.protein.*
 src/__pycache__/
 writes/
 dev/*
+
+# allow 
+!dataset/DRUGBANK/taxons/drugbank_microorganisms_with_pathogen_status.csv
+!dataset/DRUGBANK/uniprot_entry_names.json

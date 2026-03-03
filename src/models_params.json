@@ -44,6 +44,35 @@
 
   },
 
+  "pathogen32-cmp-gene-neg-fix": {
+    "rgcn": {
+      "conv_layer_num": 3,
+      "layer_0": 16, 
+      "layer_1": 16, 
+      "layer_2": 16, 
+      "grad_norm": 1.2359459626710445, 
+      "num_bases": 10, 
+      "model_name": "rgcn", 
+      "learning_rate": 0.001188640830583205,
+       "mlp_out_layer": 32, 
+      "regularization": 0.00000177100087697881
+    },
+    "rgat": {},
+    
+    "compgcn": {
+      "conv_layer_num": 3,
+      "dropout": 0.2334615069280862,
+      "layer_0": 64,
+      "layer_1": 16,
+      "layer_2": 8,
+      "mlp_out_layer": 16,
+      "learning_rate": 0.0003988884413382042,
+      "opn": "corr",
+      "grad_norm": 0.5946306481700605,
+      "regularization": 0.000280785439553541
+    }
+  },
+
   "default": {
     "rgcn": {
       "conv_layer_num":3,

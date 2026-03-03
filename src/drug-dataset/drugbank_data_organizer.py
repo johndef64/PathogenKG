@@ -1,4 +1,4 @@
-
+﻿
 #%%
 # Uniform drugbank data to vitagraph
 import pandas as pd
@@ -54,7 +54,7 @@ triples_df = pd.DataFrame(triples)
 print(triples_df.head())
 
 # Salvare il dataset di triple (opzionale)
-triples_df.to_csv('vitagraph_drug_target_triples.csv', index=False)
+triples_df.to_csv('pathogenkg_drug_target_triples.csv', index=False)
 
 
 # %%
