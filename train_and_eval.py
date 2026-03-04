@@ -171,7 +171,9 @@ def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversam
                                                  )
   
   # Label target edges BEFORE converting to IDs (need string entity names to derive edge types)
-  edge_index = set_target_label(edge_index, [ x for x in task.split(',')] )
+  #if task is a list keep is as it is if is a string apply this [ x for x in task.split(',')] 
+  target_list = [ x for x in task.split(',')] if isinstance(task, str) else task
+  edge_index = set_target_label(edge_index, target_list)
   
   ent2id, all_nodes_per_type  = entities2id_offset(edge_index, node_features_per_type, quiet)
   relation2id                 = rel2id_offset(edge_index)

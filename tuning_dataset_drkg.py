@@ -12,6 +12,7 @@ import random
 
 from src.utils import set_seed
 from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
+from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from train_and_eval import (
     get_dataset,
     train,
@@ -19,14 +20,15 @@ from train_and_eval import (
     negative_sampling_filtered,
 )
 
+MODEL = "compgcn"
 # WandB configuration
-PROJECT_NAME = "DRKG-compgcn-ablation-neg-fix"
+PROJECT_NAME = f"DRKG-{MODEL}-drug-abl-neg-fix"
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"
-# # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
+# # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip
 BASE_TSV_PATH = "dataset/drkg/drkg_reduced.zip"
 MODELS_PARAMS_PATH = "src/models_params.json"
 MODELS_PARAMS_SWEEP_KEY = "pathogen32-cmp-gene-neg-fix"
-MODELS_PARAMS_MODEL_KEY = "compgcn"
+MODELS_PARAMS_MODEL_KEY = MODEL
 USE_ALTERNATIVE_NEG_SAMPLING = True  
 RUN_NUMBER = 6
 
@@ -49,7 +51,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 negative_sampler = negative_sampling_filtered
 
 SWEEP_CONFIG = {
-    "name": "compgcn-dataset-variants",
+    "name": f"{MODEL}-dataset-variants",
     "method": "grid",
     "metric": {
         "name": "final_mixed_metric",
@@ -68,7 +70,7 @@ def cleanup_cuda():
     gc.collect()
 
 
-def load_fixed_compgcn_params():
+def load_fixed_model_params():
     with open(MODELS_PARAMS_PATH, "r", encoding="utf-8") as f:
         params = json.load(f)
     return params[MODELS_PARAMS_SWEEP_KEY][MODELS_PARAMS_MODEL_KEY]
@@ -186,6 +188,37 @@ def create_compgcn_from_params(params, in_channels_dict, num_nodes_per_type, num
         opn=params["opn"],
     )
 
+
+def create_rgcn_from_params(params, in_channels_dict, num_nodes_per_type, num_entities, num_relations):
+    import torch.nn.functional as F
+    conv_hidden_channels = {
+        f"layer_{i}": params[f"layer_{i}"]
+        for i in range(params["conv_layer_num"])
+    }
+    return rgcn(
+        in_channels_dict,
+        params["mlp_out_layer"],
+        params["mlp_out_layer"],
+        conv_hidden_channels,
+        num_nodes_per_type,
+        num_entities,
+        num_relations,
+        params["conv_layer_num"],
+        params["num_bases"],
+        activation_function=F.relu,
+        device=device,
+    )
+
+
+def create_model_from_params(model_name, params, in_channels_dict, num_nodes_per_type, num_entities, num_relations):
+    if model_name == "compgcn":
+        return create_compgcn_from_params(params, in_channels_dict, num_nodes_per_type, num_entities, num_relations)
+    elif model_name == "rgcn":
+        return create_rgcn_from_params(params, in_channels_dict, num_nodes_per_type, num_entities, num_relations)
+    else:
+        raise ValueError(f"Unknown model: {model_name}. Choose 'compgcn' or 'rgcn'.")
+
+
 import random
 def train_model():
     wandb.init()
@@ -195,11 +228,28 @@ def train_model():
     random_alphanum_quadruplet = ''.join(rng.choices('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789', k=4))
     wandb.run.name = f"{dataset_variant}-run-{random_alphanum_quadruplet}"
 
-    fixed_params = load_fixed_compgcn_params()
+    fixed_params = load_fixed_model_params()
 
     # Fixed training setup
     tsv_path = BASE_TSV_PATH
-    task = "CMP_BIND"
+    task = ['CMP_BIND',
+            'DOWNREGULATION',
+            'BLOCKER',
+            'gene_OTHER_cmp',
+            'ACTIVATOR',
+            'MODULATOR',
+            'POSITIVE_ALLOSTERIC_MODULATOR',
+            'ALLOSTERIC_MODULATOR',
+            'PARTIAL_AGONIST',
+            'ANTIBODY',
+            'ENZYME',
+            'carrier',
+            'E',
+            'K',
+            'UPREGULATION',
+            'O']
+    # task = "CMP_BIND"
+    task = "TREATMENT"
     validation_size = 0.1
     test_size = 0.2
     epochs = 200
@@ -249,8 +299,8 @@ def train_model():
         all_entities_arr = np.arange(num_entities)
         all_true_arr = train_val_test_triplets.cpu().numpy()
 
-        model = create_compgcn_from_params(
-            fixed_params, in_channels_dict, num_nodes_per_type, num_entities, num_relations
+        model = create_model_from_params(
+            MODEL, fixed_params, in_channels_dict, num_nodes_per_type, num_entities, num_relations
         )
         model = model.to(device)
         train_index = train_index.to(device)
