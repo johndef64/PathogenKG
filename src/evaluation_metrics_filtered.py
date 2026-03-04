@@ -252,6 +252,20 @@ def evaluation_metrics_filtered_typeconstrained(
     return results
 
 
+"""Nota importante sulla type-constrained evaluation:
+**Sì, la type-constrained evaluation è presente in letteratura, ma NON è il protocollo standard dominante.** Ecco la situazione precisa:
+
+**Esiste ed è citata.** Il paper di riferimento è Krompaß et al. (2015), *"Type-Constrained Representation Learning in Knowledge Graphs"* (ISWC 2015), che studia come i type-constraints possono supportare il modelling statistico di knowledge graph, integrando prior knowledge sui tipi di entità nei modelli latenti, con miglioramenti fino al 77% nel link prediction. È un paper abbastanza citato nella community KGE.
+
+**È usata principalmente per il negative sampling, non per la valutazione.** In letteratura la type-constraint è applicata molto più spesso in *training* (per generare negative samples più difficili e realistici) che in *evaluation*. Il framework TaKE, ad esempio, propone una type-constrained negative sampling strategy per costruire negative samples di alta qualità durante il training, migliorando le performance dei modelli KGE esistenti.
+
+**Quando usata in evaluation, produce MRR più alto e va dichiarata esplicitamente.** Alcuni benchmark generano negative samples che rispettano i type constraints (corruzione della head o tail tipicamente compatibile) e altri che li violano, perché i modelli tendono a riconoscere facilmente i tipi errati, rendendo i negativi type-inconsistent molto meno sfidanti — e quindi la valutazione meno rigorosa.
+
+**Il protocollo dominante nella letteratura è il ranking su tutte le entità** (come discusso prima). La type-constrained evaluation produce MRR sistematicamente più alto perché il pool di candidati è molto più piccolo. Questo significa che i tuoi risultati **non sono direttamente confrontabili** con i paper che usano il protocollo standard (es. PyKEEN, risultati su Hetionet di OpenBioLink, ecc.) a meno che tu non lo dichiari esplicitamente nel paper.
+
+**Cosa fare in pratica:** se stai scrivendo un paper o un report, devi specificare chiaramente che usi type-constrained evaluation, e idealmente riportare anche i risultati con il protocollo standard per permettere il confronto con la letteratura esistente.
+"""
+
 # Alias per compatibilità con il codice esistente
 evaluation_metrics_filtered_relaxed = evaluation_metrics_filtered_typeconstrained
 

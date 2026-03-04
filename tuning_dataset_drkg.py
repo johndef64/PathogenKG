@@ -22,7 +22,7 @@ from train_and_eval import (
 
 MODEL = "compgcn"
 # WandB configuration
-PROJECT_NAME = f"DRKG-{MODEL}-drug-abl-neg-fix"
+PROJECT_NAME = f"DRKG-{MODEL}-treat-abl-eval-typed"
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"
 # # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip
 BASE_TSV_PATH = "dataset/drkg/drkg_reduced.zip"
@@ -374,7 +374,7 @@ def train_model():
                     use_filtered_eval=USE_FILTERED_EVAL,
                     all_target_triplets=train_val_test_triplets,
                     num_entities=num_entities,
-                    standardized_sampled_eval=STANDARDIZED_SAMPLED_EVAL
+                    standardized_negatives=STANDARDIZED_SAMPLED_EVAL
                 )
 
                 mixed_metric = (
@@ -436,7 +436,7 @@ def train_model():
             use_filtered_eval=USE_FILTERED_EVAL,
             all_target_triplets=train_val_test_triplets,
             num_entities=num_entities,
-            standardized_sampled_eval=STANDARDIZED_SAMPLED_EVAL
+            standardized_negatives=STANDARDIZED_SAMPLED_EVAL
         )
 
         final_mixed_metric = (

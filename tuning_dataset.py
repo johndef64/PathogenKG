@@ -22,7 +22,7 @@ from train_and_eval import (
 
 MODEL = "compgcn"
 # WandB configuration
-PROJECT_NAME = f"PathogenKG-dataset-{MODEL}-ablation-neg-fix"
+PROJECT_NAME = f"PathogenKG-{MODEL}-ablation-eval-typed"
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"
 # # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
 BASE_TSV_PATH = "dataset/PathogenKG_n34_core.tsv.zip"
