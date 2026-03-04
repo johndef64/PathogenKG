@@ -971,6 +971,7 @@ Il dato cruciale: i tuoi risultati attuali (MRR 0.065) non sono confrontabili co
 
 
 """
+### Sampled evaluation: MRR e Hits@k su un campione di candidati (non filtrato, non confrontabile con la letteratura)
 
 def evaluation_metrics_legacy(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
 	"""
@@ -1111,6 +1112,8 @@ def evaluation_metrics_sampled(model, embeddings, all_target_triplets, test_trip
 
     return mrr.item(), hits_result
 
+# ======== FULL RANKING EVALUATION: MRR e Hits@k su TUTTI i nodi del grafo (filtered, confrontabile con la letteratura) ========
+
 def evaluation_metrics_full(model, embeddings, all_graph_nodes, test_triplet, device, hits=[1,3,10]):
     """
     MRR e Hits calcolati su tutti i nodi del grafo.
@@ -1234,6 +1237,10 @@ def evaluation_metrics_full_bidirectional(model, embeddings, all_graph_nodes, te
 
 """
 Evaluation metrics per Knowledge Graph Link Prediction — Filtered Setting.
+
+Queste metriche sono standard nella letteratura KGE e forniscono una valutazione più realistica
+
+Queste metriche sono full graph, non campionate, e possono essere computazionalmente intensive su grafi molto grandi. Tuttavia, sono più affidabili rispetto a metriche campionate o non filtrate, specialmente in contesti con molti positivi noti (come i KGE biomedici).
 
 Versione corretta e migliorata rispetto alla proposta originale.
 Cambiamenti rispetto alla versione proposta:

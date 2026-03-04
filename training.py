@@ -417,6 +417,7 @@ def main():
     # Auto-generate project name if not given
     if args.wandb_project is None:
         dataset_name = os.path.splitext(os.path.basename(args.tsv))[0]
+        dataset_name = dataset_name.split(".")[0].split("_")[0]  # e.g. "PathogenKG" from "PathogenKG_n34_core"
         task_clean = args.task.lower().replace(",", "-")
         args.wandb_project = f"{dataset_name}-{args.model}-{task_clean}-training"
 

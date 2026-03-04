@@ -434,7 +434,7 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
   else:
     # --- OLD: evaluation_metrics originale (mantenuta per backward compatibility) ---
     # è nomrale che copn sole 20 random avrò valori di mrr e hits molto variabili tra run!!!
-    NUM_GENERATE = 100  # [100-200]  # 20 legacy
+    NUM_GENERATE = 200  # [100-200]  # 20 legacy
     mrr, hits = evaluation_metrics_sampled(model, out, train_val_triplets, target_triplets[...], NUM_GENERATE, 0, hits=[1,3,10])
 
   # # aggiungi MRR affidabile solo sul test set finale
@@ -953,6 +953,7 @@ if __name__ == '__main__':
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model rgcn --runs 3 --epochs 100
   python train_and_eval.py --model compgcn --epochs 100 --negative_sampling filtered
+  python train_and_eval.py --model compgcn --epochs 100 --negative_sampling filtered --eval_filtered
   python train_and_eval.py --model compgcn --pretrain_epochs 100 --freeze_base --epochs 200
 
   -----------------------------------------------------------

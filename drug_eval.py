@@ -10,10 +10,10 @@ Finally, the targets with the highest scores will be evaluated and compared with
 
 
 # All compounds (decismente troppo intensivo!)
-python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307
+python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723
 
 # Single compound
-python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307 --compound "Compound::Pubchem:19"
+python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723 --compound "Compound::Pubchem:19"
 
 """
 
@@ -25,9 +25,9 @@ python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_2026030
 # and then evaluates recall against the held-out test TARGET edges.
 
 # Example commands:
-# python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307
-# python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307 --compound "Compound::Pubchem:19"
-# python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307 --compound all --topk 50
+# python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723
+# python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723 --compound "Compound::Pubchem:19"
+# python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723 --compound all --topk 50
 
 ########################################################
 
@@ -131,6 +131,7 @@ def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entiti
     models_params = json.load(f)
 
   sweep = "pathogen32-cmp-gene-neg-fix"
+#   sweep = "pathogen32-cmp-gene"
   if sweep not in models_params:
     print(f"[get_model] Sweep '{sweep}' not found, using 'default' sweep")
     sweep = "default"
@@ -592,13 +593,13 @@ if __name__ == '__main__':
     epilog="""
 Examples:
   # Evaluate all compounds in the dataset
-  python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307
+  python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723
 
   # Evaluate a specific compound
-  python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307 --compound "Compound::Pubchem:19"
+  python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723 --compound "Compound::Pubchem:19"
 
   # Evaluate all compounds with top-50 predictions
-  python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260302_171307 --compound all --topk 50
+  python drug_eval.py --model_folder models/target_PathogenKG_n34_core.tsv_20260225_184723 --compound all --topk 50
 
   # Use a different dataset
   python drug_eval.py --model_folder models/myfolder --tsv dataset/PathogenKG_n34_core.tsv.zip --compound all

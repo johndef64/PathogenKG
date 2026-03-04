@@ -73,7 +73,7 @@
     }
   },
 
-  "BIOKG":{
+  "BIOKG-200":{
     "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen32-cmp-gene'.",
 
         "rgcn": {
@@ -110,7 +110,7 @@
     
 },
 
-  "BIOKG-light":{
+  "BIOKG-128":{
     "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen32-cmp-gene'.",
 
         "rgcn": {
@@ -147,6 +147,42 @@
     
 },
 
+  "BIOKG-64":{
+    "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen32-cmp-gene'.",
+
+        "rgcn": {
+            "conv_layer_num": 2,
+            "layer_0": 64,
+            "layer_1": 64,
+            "mlp_out_layer": 64,
+            "learning_rate": 0.001,
+            "num_bases": 30,
+            "grad_norm": 1.0,
+            "regularization": 0.00001
+        },
+        "rgat": {
+            "conv_layer_num": 2,
+            "layer_0": 64,
+            "layer_1": 64,
+            "mlp_out_layer": 64,
+            "learning_rate": 0.001,
+            "num_bases": 30,
+            "grad_norm": 1.0,
+            "regularization": 0.00001
+        },
+        "compgcn": {
+            "conv_layer_num": 2,
+            "dropout": 0.3,
+            "layer_0": 64,
+            "layer_1": 64,
+            "mlp_out_layer": 64,
+            "learning_rate": 0.001,
+            "opn": "sub",
+            "grad_norm": 1.0,
+            "regularization": 0.00001
+        }
+    
+},
 
   "default": {
     "rgcn": {

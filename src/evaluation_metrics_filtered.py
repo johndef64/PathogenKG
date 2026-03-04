@@ -1,6 +1,10 @@
 """
 Evaluation metrics per Knowledge Graph Link Prediction — Filtered Setting.
 
+Queste metriche sono standard nella letteratura KGE e forniscono una valutazione più realistica
+
+Queste metriche sono full graph, non campionate, e possono essere computazionalmente intensive su grafi molto grandi. Tuttavia, sono più affidabili rispetto a metriche campionate o non filtrate, specialmente in contesti con molti positivi noti (come i KGE biomedici).
+
 Versione corretta e migliorata rispetto alla proposta originale.
 Cambiamenti rispetto alla versione proposta:
   1. Aggiunto check di sicurezza per evitare rank=0 e divisione per zero nel MRR
@@ -9,6 +13,8 @@ Cambiamenti rispetto alla versione proposta:
   4. Logging opzionale per debug
   5. Supporto per device mismatch
   6. Gestione edge case: nodo positivo assente da unique_nodes
+
+
 """
 
 import torch
