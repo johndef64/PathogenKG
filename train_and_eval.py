@@ -433,7 +433,8 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
     hits = {k: filtered_results[f'hits@{k}'] for k in [1, 3, 10]}
   else:
     # --- OLD: evaluation_metrics originale (mantenuta per backward compatibility) ---
-    NUM_GENERATE = 100  # [100-200]
+    # è nomrale che copn sole 20 random avrò valori di mrr e hits molto variabili tra run!!!
+    NUM_GENERATE = 100  # [100-200]  # 20 legacy
     mrr, hits = evaluation_metrics_sampled(model, out, train_val_triplets, target_triplets[...], NUM_GENERATE, 0, hits=[1,3,10])
 
   # # aggiungi MRR affidabile solo sul test set finale

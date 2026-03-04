@@ -962,6 +962,14 @@ Ottima domanda, è un punto fondamentale.
 Quindi in sintesi: 20 candidati (base) vs 468 candidati (filtered su PathogenKG). Le metriche della base sono gonfiate e non confrontabili con nessun paper. Le metriche filtered sono lo standard e confrontabili.
 
 Per DRKG con molti nodi, se il full ranking è troppo lento durante il training, un compromesso ragionevole è usare la sampled durante il training per monitorare (con `num_generate` almeno 100-200, non 20) e la filtered solo per la valutazione finale sul test set.
+
+=======
+
+Per i dataset general-purpose (FB15k-237, WN18RR), CompGCN raggiunge MRR di 0.355 su FB15k-237 e 0.479 su WN18RR arXiv, risultando competitivo con i migliori modelli. Questi dataset però hanno centinaia di migliaia di triple di training, quindi i numeri assoluti non sono confrontabili col tuo caso.
+Per il drug repurposing, il confronto più rilevante è con Hetionet. Su Hetionet per la relazione "compound treats disease", CompGCN ottiene MRR 0.292 e Hits@10 0.543, mentre DistMult arriva a 0.287 e 0.510 arXiv. Ma attenzione: Hetionet ha 47K nodi e 2.2M triple nel grafo, con solo 82 triple di test per "treats" — situazione molto simile alla tua con PathogenKG (468 nodi, 89 triple di test).
+Il dato cruciale: i tuoi risultati attuali (MRR 0.065) non sono confrontabili con nessuna di queste tabelle perché usavi sampled ranking a 20 candidati senza filtered setting. Una volta che usi evaluation_metrics_filtered, i numeri saranno confrontabili. Con 258 triple di training e 468 nodi, un MRR filtered nel range 0.05–0.15 sarebbe già un risultato ragionevole e coerente con la letteratura per dataset di questa scala.
+
+
 """
 
 def evaluation_metrics_legacy(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
