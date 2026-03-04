@@ -31,6 +31,11 @@ MODELS_PARAMS_SWEEP_KEY = "pathogen32-cmp-gene-neg-fix"
 MODELS_PARAMS_MODEL_KEY = MODEL
 USE_ALTERNATIVE_NEG_SAMPLING = True  
 USE_FILTERED_EVAL = True   # True = filtered (standard KGE), False = legacy
+STANDARDIZED_SAMPLED_EVAL = False  # Se True, usa un set fisso di negativi campionati per valutazione MRR/Hits@K, altrimenti nuovi negativi ogni volta (più variabilità ma più "realistico"). Se USE_FILTERED_EVAL è True, è consigliabile mantenere STANDARDIZED_SAMPLED_EVAL a True per avere metriche più stabili e comparabili tra run.
+# STANDARDIZED_SAMPLED_EVAL only for USE_ALTERNATIVE_NEG_SAMPLING = False
+
+
+
 RUN_NUMBER = 6
 
 
@@ -369,6 +374,7 @@ def train_model():
                     use_filtered_eval=USE_FILTERED_EVAL,
                     all_target_triplets=train_val_test_triplets,
                     num_entities=num_entities,
+                    standardized_sampled_eval=STANDARDIZED_SAMPLED_EVAL
                 )
 
                 mixed_metric = (
@@ -430,6 +436,7 @@ def train_model():
             use_filtered_eval=USE_FILTERED_EVAL,
             all_target_triplets=train_val_test_triplets,
             num_entities=num_entities,
+            standardized_sampled_eval=STANDARDIZED_SAMPLED_EVAL
         )
 
         final_mixed_metric = (

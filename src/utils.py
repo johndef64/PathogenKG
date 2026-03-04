@@ -1025,7 +1025,7 @@ def evaluation_metrics_legacy(model, embeddings, all_target_triplets, test_tripl
 	return mrr.item(), hits #, auroc, auprc
 
 
-def evaluation_metrics_sampled(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
+def evaluation_metrics_sampled(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10], standardized_negatives=False):
     """
     Approximate (sampled) MRR and Hits@k evaluation for KG link prediction.
 
@@ -1038,14 +1038,24 @@ def evaluation_metrics_sampled(model, embeddings, all_target_triplets, test_trip
     which is faster and suitable for training monitoring but optimistic and
     dependent on the sampling size. Results are not directly comparable to
     standard full-ranking KG benchmarks.
-    
+
     FIXES rispetto alla versione originale:
       1. Traccia la posizione del positivo dopo il sort (prima assumeva ranks[:,-1])
       2. Clamp num_generate per evitare errore se > nodi disponibili
       3. Gestisce il caso hits passato come dict (re-init sicuro)
+
+    Args:
+        standardized_negatives: se True, campiona i negativi da tutti gli entity ID
+            (torch.arange su embeddings) invece che dai soli nodi presenti in
+            all_target_triplets. Garantisce lo stesso set di negativi tra varianti
+            di ablation study (a parità di num_generate e entity set), rendendo
+            le metriche direttamente confrontabili.
     """
-    src, _, dst = all_target_triplets.T
-    unique_nodes = torch.unique(torch.cat((src, dst), dim=0))
+    if standardized_negatives:
+        unique_nodes = torch.arange(embeddings.size(0), device=device)
+    else:
+        src, _, dst = all_target_triplets.T
+        unique_nodes = torch.unique(torch.cat((src, dst), dim=0))
 
     # Clamp: non possiamo generare più candidati di quanti nodi abbiamo
     if num_generate > unique_nodes.size(0):

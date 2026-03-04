@@ -63,7 +63,7 @@ from torcheval.metrics.functional import binary_auprc, binary_auroc
 from src.utils import set_seed, load_data, select_target_triplets, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
                       set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics_sampled, evaluation_metrics_full
 
-from src.evaluation_metrics_filtered import evaluation_metrics_filtered, print_metrics
+from src.evaluation_metrics_filtered import evaluation_metrics_filtered, evaluation_metrics_filtered_typeconstrained, print_metrics
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
@@ -82,6 +82,7 @@ models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEBUG = False
 USE_ALTERNATIVE_NEG_SAMPLING = True
+
 """
 Se True, usa negative_sampling_filtered con:
 - all_entities_arr: tutti i nodi del grafo (np.arange(num_entities)) invece di inferire
@@ -365,7 +366,7 @@ def train(model, optimizer, gradnorm, reg_param, x_dict, index , target_triplets
   return metrics
 
 def test(model, reg_param, x_dict, index , target_triplets, target_labels, train_val_triplets, alpha, gamma, alpha_adv, change_points=None,
-         use_filtered_eval=False, all_target_triplets=None, num_entities=None):    
+         use_filtered_eval=False, all_target_triplets=None, num_entities=None, standardized_negatives=False):    
   metrics = {"Auroc":{},"Auprc":{},"Loss":{}}
 
   model.eval()
@@ -425,7 +426,7 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
     pos_mask = target_labels.bool()
     test_positives = target_triplets[pos_mask]
     
-    filtered_results = evaluation_metrics_filtered(
+    filtered_results = evaluation_metrics_filtered_typeconstrained(
         model, out, all_target_triplets, test_positives,
         all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
     )
@@ -435,7 +436,7 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
     # --- OLD: evaluation_metrics originale (mantenuta per backward compatibility) ---
     # è nomrale che copn sole 20 random avrò valori di mrr e hits molto variabili tra run!!!
     NUM_GENERATE = 200  # [100-200]  # 20 legacy
-    mrr, hits = evaluation_metrics_sampled(model, out, train_val_triplets, target_triplets[...], NUM_GENERATE, 0, hits=[1,3,10])
+    mrr, hits = evaluation_metrics_sampled(model, out, train_val_triplets, target_triplets[...], NUM_GENERATE, 0, hits=[1,3,10], standardized_negatives=standardized_negatives)
 
   # # aggiungi MRR affidabile solo sul test set finale
   # all_graph_nodes = torch.arange(num_entities)
@@ -885,7 +886,7 @@ if __name__ == '__main__':
   parser.add_argument('--gamma', type=float, default=3.0, help='Gamma value of the focal loss')
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
   parser.add_argument('--dry_run', action='store_true', help='If set, the ablation study will not save models or rankings, and will skip final evaluation.')
-  parser.add_argument('--eval_filtered', action='store_true', 
+  parser.add_argument('--eval_filtered', action='store_true', default=True,
                       help='Use filtered evaluation metrics (standard KGE setting). '
                            'Ranks against all graph nodes with known positives masked. '
                            'If not set, uses legacy pool-based evaluation.')
