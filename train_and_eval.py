@@ -410,7 +410,7 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
   # Subito prima della chiamata evaluation_metrics in test()
   src, _, dst = train_val_triplets.T
   unique_nodes = torch.unique(torch.cat((src, dst)))
-  print(f"[DEBUG] unique_nodes: {unique_nodes.size(0)}, train_val_triplets shape: {train_val_triplets.shape}, device: {train_val_triplets.device}")
+  # print(f"[DEBUG] unique_nodes: {unique_nodes.size(0)}, train_val_triplets shape: {train_val_triplets.shape}, device: {train_val_triplets.device}")
   
   mrr, hits = evaluation_metrics(model, out, train_val_triplets, target_triplets[...], 20, 0, hits=[1,3,10])
 
