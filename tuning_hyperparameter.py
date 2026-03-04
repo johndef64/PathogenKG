@@ -94,6 +94,7 @@ AVAILABLE_MODELS = ['rgcn', 'compgcn']
 AVAILABLE_MODELS = ['compgcn']
 BASE_SEED = 42
 USE_ALTERNATIVE_NEG_SAMPLING = True
+USE_FILTERED_EVAL = True   # True = filtered (standard KGE), False = legacy
 negative_sampling = negative_sampling_filtered  # Use filtered negative sampling for better evaluation
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -278,7 +279,10 @@ def train_model():
 					flattened_features_per_type, train_index,
 					validation_triplets, val_labels,
 					train_val_triplets,
-					alpha, gamma, alpha_adv, change_points
+					alpha, gamma, alpha_adv, change_points,
+					use_filtered_eval=USE_FILTERED_EVAL,
+                    all_target_triplets=train_val_test_triplets,
+                    num_entities=num_entities,
 				)
 
 				# Calculate mixed metric
@@ -322,7 +326,10 @@ def train_model():
 			flattened_features_per_type, train_index,
 			testing_triplets, test_labels,
 			train_val_test_triplets,
-			alpha, gamma, alpha_adv, change_points
+			alpha, gamma, alpha_adv, change_points,
+			use_filtered_eval=USE_FILTERED_EVAL,
+                    all_target_triplets=train_val_test_triplets,
+                    num_entities=num_entities,
 		)
 		
 		# Log final test metrics

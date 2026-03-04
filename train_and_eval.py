@@ -61,7 +61,9 @@ import torch.nn.functional as F
 from torcheval.metrics.functional import binary_auprc, binary_auroc
 
 from src.utils import set_seed, load_data, select_target_triplets, entities2id_offset, rel2id_offset, edge_ind_to_id, entities_features_flattening,\
-                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics, evaluation_metrics_full
+                      set_target_label, triple_sampling, graph_to_undirect, negative_sampling, negative_sampling_filtered, add_self_loops, evaluation_metrics_sampled, evaluation_metrics_full
+
+from src.evaluation_metrics_filtered import evaluation_metrics_filtered, print_metrics
 
 from src.hetero_rgcn import HeterogeneousRGCN as rgcn
 from src.hetero_rgat import HeterogeneousRGAT as rgat
@@ -72,6 +74,8 @@ BASE_SEED = 42
 # Single, pre-merged dataset ready for training.
 dataset = 'PathogenKG_merged.tsv'
 dataset = 'PathogenKG_n19.tsv'
+
+
 dataset = 'PathogenKG_n34_core.tsv.zip'
 DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
@@ -242,7 +246,7 @@ def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entiti
     models_params = json.load(f)
   
   # Select params by sweep (not by task). Fallback to "default" sweep if needed.
-  sweep = "pathogen32-cmp-gene"
+  sweep = "pathogen32-cmp-gene-neg-fix"
   if sweep not in models_params:
     print(f"[get_model] Sweep '{sweep}' not found, using 'default' sweep")
     sweep = "default"
@@ -360,7 +364,8 @@ def train(model, optimizer, gradnorm, reg_param, x_dict, index , target_triplets
 
   return metrics
 
-def test(model, reg_param, x_dict, index , target_triplets, target_labels, train_val_triplets, alpha, gamma, alpha_adv, change_points=None):    
+def test(model, reg_param, x_dict, index , target_triplets, target_labels, train_val_triplets, alpha, gamma, alpha_adv, change_points=None,
+         use_filtered_eval=False, all_target_triplets=None, num_entities=None):    
   metrics = {"Auroc":{},"Auprc":{},"Loss":{}}
 
   model.eval()
@@ -412,7 +417,24 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
   unique_nodes = torch.unique(torch.cat((src, dst)))
   # print(f"[DEBUG] unique_nodes: {unique_nodes.size(0)}, train_val_triplets shape: {train_val_triplets.shape}, device: {train_val_triplets.device}")
   
-  mrr, hits = evaluation_metrics(model, out, train_val_triplets, target_triplets[...], 20, 0, hits=[1,3,10])
+  if use_filtered_eval and all_target_triplets is not None and num_entities is not None:
+    # --- NEW: Filtered evaluation (standard in KGE literature) ---
+    # Usa tutti i nodi del grafo come candidati, con filtered setting
+    all_graph_nodes = torch.arange(num_entities, device=target_triplets.device)
+    # Estrai solo le triple positive dal batch (target_triplets contiene pos+neg)
+    pos_mask = target_labels.bool()
+    test_positives = target_triplets[pos_mask]
+    
+    filtered_results = evaluation_metrics_filtered(
+        model, out, all_target_triplets, test_positives,
+        all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
+    )
+    mrr = filtered_results['mrr']
+    hits = {k: filtered_results[f'hits@{k}'] for k in [1, 3, 10]}
+  else:
+    # --- OLD: evaluation_metrics originale (mantenuta per backward compatibility) ---
+    NUM_GENERATE = 100  # [100-200]
+    mrr, hits = evaluation_metrics_sampled(model, out, train_val_triplets, target_triplets[...], NUM_GENERATE, 0, hits=[1,3,10])
 
   # # aggiungi MRR affidabile solo sul test set finale
   # all_graph_nodes = torch.arange(num_entities)
@@ -568,7 +590,7 @@ def eval(model, flattened_features_per_type, train_index, edge_index, ent2id, re
 
 def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size, test_size, quiet, \
   evaluate_every, negative_rate, model_save_path, oversample_rate, undersample_rate, \
-  pretrain_epochs, freeze_base, alpha, gamma, alpha_adv, early_stopping, min_delta):
+  pretrain_epochs, freeze_base, alpha, gamma, alpha_adv, early_stopping, min_delta, eval_filtered=False):
   all_run_metrics = []
 
   # Select negative sampler without shadowing imported function names.
@@ -578,6 +600,11 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
   else:
     print("[i] Using standard negative sampling (all edges) for training.")
     neg_sampler = negative_sampling
+
+  if eval_filtered:
+    print("[i] Using FILTERED evaluation metrics (standard KGE setting).")
+  else:
+    print("[i] Using LEGACY evaluation metrics (pool-based, unfiltered).")
 
     
   # Multi-relational pretraining phase
@@ -727,7 +754,10 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
             alpha,
             gamma,
             alpha_adv,
-            change_points
+            change_points,
+            use_filtered_eval=eval_filtered,
+            all_target_triplets=train_val_test_triplets if eval_filtered else None,
+            num_entities=num_entities if eval_filtered else None
           )
           # Previous criterion (kept commented by request):
           # mixed_metric = 0.2*val_metrics["Auroc"] + 0.4*val_metrics["Auprc"] + 0.4*val_metrics["MRR"]
@@ -773,16 +803,22 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
             alpha,
             gamma,
             alpha_adv,
-            change_points
+            change_points,
+            use_filtered_eval=eval_filtered,
+            all_target_triplets=train_val_test_triplets if eval_filtered else None,
+            num_entities=num_entities if eval_filtered else None
           )  
       print(f"Run {i} | Test Auroc: {metrics['Auroc']:.3f}, Test Auprc: {metrics['Auprc']:.3f}, Test MRR: {metrics['MRR']:.3f}, TEST HITS: {metrics['Hits@']}")
+      if eval_filtered:
+        print(f"         (filtered setting — ranking against all {num_entities} nodes)")
       all_run_metrics.append({
           "Auroc": metrics["Auroc"],
           "Auprc": metrics["Auprc"],
           "MRR": metrics["MRR"],
           "Hits@1": metrics["Hits@"][1],
           "Hits@3": metrics["Hits@"][3],
-          "Hits@10": metrics["Hits@"][10]
+          "Hits@10": metrics["Hits@"][10],
+          "eval_mode": "filtered" if eval_filtered else "legacy"
       })
       print(f"[i] Completed run {i}/{args.runs}")
 
@@ -848,6 +884,10 @@ if __name__ == '__main__':
   parser.add_argument('--gamma', type=float, default=3.0, help='Gamma value of the focal loss')
   parser.add_argument('--alpha_adv', type=float, default=2.0, help='Alpha value for the hard-negative mining loss'), 
   parser.add_argument('--dry_run', action='store_true', help='If set, the ablation study will not save models or rankings, and will skip final evaluation.')
+  parser.add_argument('--eval_filtered', action='store_true', 
+                      help='Use filtered evaluation metrics (standard KGE setting). '
+                           'Ranks against all graph nodes with known positives masked. '
+                           'If not set, uses legacy pool-based evaluation.')
 
   # add task as argument
   parser.add_argument('--task', type=str, 
@@ -876,6 +916,7 @@ if __name__ == '__main__':
   alpha_adv       = args.alpha_adv
   early_stopping  = args.early_stopping
   min_delta       = args.min_delta
+  eval_filtered   = args.eval_filtered
 
   # get dataset_name (use os.path for cross-platform compatibility)
   dataset_basename = os.path.basename(args.tsv)
@@ -933,4 +974,4 @@ if __name__ == '__main__':
 
   main(model, dataset_tsv, task, runs, epochs, patience, validation_size, test_size, quiet, \
       evaluate_every, negative_rate, model_save_path, oversample_rate, undersample_rate, \
-      pretrain_epochs, freeze_base, alpha, gamma, alpha_adv, early_stopping, min_delta)
+      pretrain_epochs, freeze_base, alpha, gamma, alpha_adv, early_stopping, min_delta, eval_filtered)

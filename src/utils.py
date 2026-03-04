@@ -948,8 +948,23 @@ def graph_transform(data):
 	transform = T.Compose(transformation)
 	data = transform(data)
 	return data
-					  
-def evaluation_metrics(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
+
+# ======== EVALUATION METRICS ========
+"""
+Ottima domanda, è un punto fondamentale.
+
+**La versione base (sampled)** valuta le Hits su un **campione di `num_generate` candidati** (nel tuo caso 20). Per ogni tripla di test, il positivo compete solo contro 20 nodi casuali. Questo rende le metriche ottimistiche — è facile essere in top 10 su 21 candidati, molto meno su 5000.
+
+**La versione filtered** valuta contro **tutti i nodi del grafo**. Per ogni tripla di test (h, r, ?), calcola lo score di *ogni* nodo come possibile tail, poi cerca dove si piazza il vero positivo in quel ranking completo. Con PathogenKG (~468 nodi) questo è velocissimo. Con DRKG (~migliaia) rallenta ma è fattibile.
+
+**Lo standard nella letteratura** è proprio il full ranking: ogni tripla di test viene valutata contro tutti i nodi. Questo è quello che fanno TransE, DistMult, RotatE, CompGCN nei paper originali e nei benchmark come FB15k-237 e WN18RR, che hanno decine di migliaia di entità. Il filtered setting rimuove solo i *veri positivi noti* dal ranking per non penalizzare il modello, ma il pool di candidati resta l'intero grafo.
+
+Quindi in sintesi: 20 candidati (base) vs 468 candidati (filtered su PathogenKG). Le metriche della base sono gonfiate e non confrontabili con nessun paper. Le metriche filtered sono lo standard e confrontabili.
+
+Per DRKG con molti nodi, se il full ranking è troppo lento durante il training, un compromesso ragionevole è usare la sampled durante il training per monitorare (con `num_generate` almeno 100-200, non 20) e la filtered solo per la valutazione finale sul test set.
+"""
+
+def evaluation_metrics_legacy(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
 	"""
     Approximate (sampled) MRR and Hits@k evaluation for KG link prediction.
 
@@ -1000,6 +1015,93 @@ def evaluation_metrics(model, embeddings, all_target_triplets, test_triplet, num
 			hits[hit] = avg_count.item()
 	return mrr.item(), hits #, auroc, auprc
 
+
+def evaluation_metrics_sampled(model, embeddings, all_target_triplets, test_triplet, num_generate, device, hits=[1,3,10]):
+    """
+    Approximate (sampled) MRR and Hits@k evaluation for KG link prediction.
+
+    For each test triplet (h,r,t), ranks the true entity against a randomly
+    sampled subset of candidate entities (size = num_generate) instead of the
+    full entity set. Both head and tail prediction are evaluated by replacing
+    h or t with sampled nodes and computing DistMult scores.
+
+    This produces a bidirectional *sampled ranking* estimate of MRR/Hits,
+    which is faster and suitable for training monitoring but optimistic and
+    dependent on the sampling size. Results are not directly comparable to
+    standard full-ranking KG benchmarks.
+    
+    FIXES rispetto alla versione originale:
+      1. Traccia la posizione del positivo dopo il sort (prima assumeva ranks[:,-1])
+      2. Clamp num_generate per evitare errore se > nodi disponibili
+      3. Gestisce il caso hits passato come dict (re-init sicuro)
+    """
+    src, _, dst = all_target_triplets.T
+    unique_nodes = torch.unique(torch.cat((src, dst), dim=0))
+
+    # Clamp: non possiamo generare più candidati di quanti nodi abbiamo
+    if num_generate > unique_nodes.size(0):
+        print(f"[WARN] num_generate ({num_generate}) > unique nodes ({unique_nodes.size(0)}), clamping.")
+        num_generate = unique_nodes.size(0)
+
+    # Re-init hits come dict pulito (evita side-effect se passato come default mutable)
+    hits_k = list(hits.keys()) if isinstance(hits, dict) else list(hits)
+    
+    # Indice del positivo: è sempre l'ultimo concatenato -> posizione num_generate
+    positive_idx = num_generate
+
+    with torch.no_grad():
+        for head in [True, False]:
+            generator = torch.Generator().manual_seed(42)
+            random_indices = torch.randperm(unique_nodes.size(0), generator=generator)[:num_generate]
+            selected_nodes = unique_nodes[random_indices]
+
+            if head:
+                # Tail prediction: fisso (h, r), vario t
+                head_rel = test_triplet[:, :2]
+                head_rel = torch.repeat_interleave(head_rel, num_generate, dim=0)
+                target_tails = torch.tile(selected_nodes, (1, test_triplet.size(0))).view(-1, 1)
+                mrr_triplets = torch.cat((head_rel, target_tails), dim=-1)
+            else:
+                # Head prediction: fisso (r, t), vario h
+                rel_tail = test_triplet[:, 1:]
+                rel_tail = torch.repeat_interleave(rel_tail, num_generate, dim=0)
+                target_heads = torch.tile(selected_nodes, (1, test_triplet.size(0))).view(-1, 1)
+                mrr_triplets = torch.cat((target_heads, rel_tail), dim=-1)
+
+            # Shape: (num_test, num_generate, 3)
+            mrr_triplets = mrr_triplets.view(test_triplet.size(0), num_generate, 3)
+            # Concatena il positivo come ultimo candidato -> indice num_generate
+            mrr_triplets = torch.cat((mrr_triplets, test_triplet.view(-1, 1, 3)), dim=1)
+
+            # Score: (num_test, num_generate+1)
+            scores = model.distmult(embeddings, mrr_triplets.view(-1, 3)).view(test_triplet.size(0), num_generate + 1)
+
+            # Sort decrescente: ranks[i,j] = indice originale del candidato in posizione j
+            _, sorted_indices = torch.sort(scores, descending=True)
+
+            # FIX: trova la posizione del positivo (indice positive_idx) nel ranking ordinato
+            # Per ogni riga, cerca dove sorted_indices == positive_idx
+            # (sorted_indices == positive_idx) è un bool tensor (num_test, num_generate+1)
+            # .nonzero() restituisce le coordinate [riga, colonna] dei True
+            # La colonna è la posizione nel ranking (0-indexed)
+            positive_positions = (sorted_indices == positive_idx).nonzero(as_tuple=False)[:, 1]
+
+            if head:
+                ranks_s = positive_positions
+            else:
+                ranks_o = positive_positions
+
+        # +1 per passare a 1-indexed (rank 1 = migliore)
+        ranks = torch.cat([ranks_s, ranks_o]).float() + 1
+
+        mrr = torch.mean(1.0 / ranks)
+
+        hits_result = {}
+        for k in hits_k:
+            avg_count = torch.sum((ranks <= k)).float() / ranks.size(0)
+            hits_result[k] = avg_count.item()
+
+    return mrr.item(), hits_result
 
 def evaluation_metrics_full(model, embeddings, all_graph_nodes, test_triplet, device, hits=[1,3,10]):
     """
@@ -1118,38 +1220,252 @@ def evaluation_metrics_full_bidirectional(model, embeddings, all_graph_nodes, te
     return mrr, hits_dict
 
 
-def evaluation_metrics_variant(model, embeddings, all_graph_nodes, test_triplet, num_generate, device, hits=[1,3,10]):
-    # all_graph_nodes: torch.arange(num_nodes) — tutti i nodi del grafo
-    unique_nodes = all_graph_nodes if isinstance(all_graph_nodes, torch.Tensor) else torch.tensor(all_graph_nodes)
-    if num_generate > unique_nodes.size(0):
-        print(f"[ERROR] requested more triplets than available nodes")
+
+########
+
+
+"""
+Evaluation metrics per Knowledge Graph Link Prediction — Filtered Setting.
+
+Versione corretta e migliorata rispetto alla proposta originale.
+Cambiamenti rispetto alla versione proposta:
+  1. Aggiunto check di sicurezza per evitare rank=0 e divisione per zero nel MRR
+  2. Aggiunto clamp del rank minimo a 1 (difesa contro edge case)
+  3. Separazione metriche tail/head per diagnostica
+  4. Logging opzionale per debug
+  5. Supporto per device mismatch
+  6. Gestione edge case: nodo positivo assente da unique_nodes
+"""
+
+import torch
+from collections import defaultdict
+
+
+def build_positive_maps(all_target_triplets):
+    """
+    Costruisce le mappe dei positivi noti per il filtered setting.
+    
+    Args:
+        all_target_triplets: tensor (N, 3) con TUTTE le triple positive 
+                             (train + val + test) della relazione target.
+    
+    Returns:
+        all_positives_tail: dict (h, r) -> set of t
+        all_positives_head: dict (r, t) -> set of h
+    """
+    all_positives_tail = defaultdict(set)
+    all_positives_head = defaultdict(set)
+    
+    for i in range(all_target_triplets.size(0)):
+        h = all_target_triplets[i, 0].item()
+        r = all_target_triplets[i, 1].item()
+        t = all_target_triplets[i, 2].item()
+        all_positives_tail[(h, r)].add(t)
+        all_positives_head[(r, t)].add(h)
+    
+    return all_positives_tail, all_positives_head
+
+
+def evaluation_metrics_filtered(
+    model, 
+    embeddings, 
+    all_target_triplets,  # train + val + test della relazione target
+    test_triplets,        # solo le triple di test
+    all_graph_nodes,      # tutti i nodi unici del grafo
+    device, 
+    hits_k=[1, 3, 10],
+    verbose=False
+):
+    """
+    Calcola MRR e Hits@K con filtered setting (standard nella letteratura KGE).
+    
+    Il filtered setting rimuove dal ranking tutti i veri positivi noti
+    (tranne quello che si sta valutando), evitando di penalizzare il modello
+    per aver assegnato score alti ad altre risposte corrette.
+    
+    Args:
+        model: modello con metodo .distmult(embeddings, triplets) -> scores
+        embeddings: embedding dei nodi (output del GNN encoder)
+        all_target_triplets: tensor (N, 3) — TUTTE le triple positive (train+val+test)
+        test_triplets: tensor (M, 3) — solo le triple di test da valutare
+        all_graph_nodes: tensor (E,) — tutti i nodi unici del grafo
+        device: torch device
+        hits_k: lista di K per Hits@K (default [1, 3, 10])
+        verbose: se True, stampa info di debug ogni 100 triple
+    
+    Returns:
+        dict con chiavi: 'mrr', 'mrr_tail', 'mrr_head', 
+                         'hits@K' per ogni K, 'hits@K_tail', 'hits@K_head'
+    """
+    model.eval()
+    unique_nodes = all_graph_nodes.to(device)
+    num_entities = unique_nodes.size(0)
+    
+    # Mappa nodo -> indice nel vettore unique_nodes
+    node_to_idx = {}
+    for i in range(num_entities):
+        node_to_idx[unique_nodes[i].item()] = i
+    
+    # Costruisci mappe dei positivi per il filtering
+    all_positives_tail, all_positives_head = build_positive_maps(all_target_triplets)
+    
+    tail_ranks = []
+    head_ranks = []
+    skipped = 0
+    
     with torch.no_grad():
-        for head in [True, False]:
-            generator = torch.Generator().manual_seed(42)
-            random_indices = torch.randperm(unique_nodes.size(0), generator=generator)[:num_generate]
-            selected_nodes = unique_nodes[random_indices].view(1, -1)  # <-- unica modifica: forza shape (1, num_generate) per torch.tile
-            if head:
-                head_rel = test_triplet[:, :2]
-                head_rel = torch.repeat_interleave(head_rel, num_generate, dim=0)
-                target_tails = torch.tile(selected_nodes, (test_triplet.size(0), 1)).view(-1, 1)
-                mrr_triplets = torch.cat((head_rel, target_tails), dim=-1)
-            else:
-                rel_tail = test_triplet[:, 1:]
-                rel_tail = torch.repeat_interleave(rel_tail, num_generate, dim=0)
-                target_heads = torch.tile(selected_nodes, (test_triplet.size(0), 1)).view(-1, 1)
-                mrr_triplets = torch.cat((target_heads, rel_tail), dim=-1)
-            mrr_triplets = mrr_triplets.view(test_triplet.size(0), num_generate, 3)
-            mrr_triplets = torch.cat((mrr_triplets, test_triplet.view(-1, 1, 3)), dim=1)
-            scores = model.distmult(embeddings, mrr_triplets.view(-1, 3)).view(test_triplet.size(0), num_generate + 1)
-            _, ranks = torch.sort(scores, descending=True)
-            if head:
-                ranks_s = ranks[:, -1]
-            else:
-                ranks_o = ranks[:, -1]
-        ranks = torch.cat([ranks_s, ranks_o]) + 1
-        mrr = torch.mean(1.0 / ranks)
-        hits = {at: 0 for at in hits}
-        for hit in hits:
-            avg_count = torch.sum((ranks <= hit)) / ranks.size(0)
-            hits[hit] = avg_count.item()
-    return mrr.item(), hits
+        for i in range(test_triplets.size(0)):
+            h, r, t = test_triplets[i]
+            h_i, r_i, t_i = h.item(), r.item(), t.item()
+            
+            # Verifica che entrambi i nodi siano nel grafo
+            if h_i not in node_to_idx or t_i not in node_to_idx:
+                skipped += 1
+                if verbose:
+                    print(f"  [SKIP] Tripla {i}: nodo mancante da unique_nodes")
+                continue
+            
+            # ============================================
+            # TAIL PREDICTION: dato (h, r, ?), ranking di t
+            # ============================================
+            tail_candidates = torch.stack([
+                h.expand(num_entities).to(device),
+                r.expand(num_entities).to(device),
+                unique_nodes
+            ], dim=1)
+            tail_scores = model.distmult(embeddings, tail_candidates)
+            
+            # Score del vero positivo
+            true_tail_score = tail_scores[node_to_idx[t_i]]
+            
+            # Filtered: maschera i positivi noti tranne t_i
+            filter_mask = torch.ones(num_entities, dtype=torch.bool, device=device)
+            for known_t in all_positives_tail.get((h_i, r_i), set()):
+                if known_t != t_i and known_t in node_to_idx:
+                    filter_mask[node_to_idx[known_t]] = False
+            
+            # Il positivo t_i NON viene mascherato (la condizione known_t != t_i lo protegge)
+            # Quindi true_tail_score è incluso in filtered_scores
+            filtered_scores = tail_scores[filter_mask]
+            
+            # Rank = quanti score sono >= al positivo (incluso se stesso, quindi rank minimo = 1)
+            tail_rank = (filtered_scores >= true_tail_score).sum().item()
+            
+            # Safety: rank deve essere almeno 1 (difesa contro edge case numerici)
+            tail_rank = max(tail_rank, 1)
+            tail_ranks.append(tail_rank)
+            
+            # ============================================
+            # HEAD PREDICTION: dato (?, r, t), ranking di h
+            # ============================================
+            head_candidates = torch.stack([
+                unique_nodes,
+                r.expand(num_entities).to(device),
+                t.expand(num_entities).to(device)
+            ], dim=1)
+            head_scores = model.distmult(embeddings, head_candidates)
+            
+            true_head_score = head_scores[node_to_idx[h_i]]
+            
+            filter_mask = torch.ones(num_entities, dtype=torch.bool, device=device)
+            for known_h in all_positives_head.get((r_i, t_i), set()):
+                if known_h != h_i and known_h in node_to_idx:
+                    filter_mask[node_to_idx[known_h]] = False
+            
+            filtered_scores = head_scores[filter_mask]
+            head_rank = (filtered_scores >= true_head_score).sum().item()
+            head_rank = max(head_rank, 1)
+            head_ranks.append(head_rank)
+            
+            if verbose and (i + 1) % 100 == 0:
+                print(f"  Valutate {i+1}/{test_triplets.size(0)} triple "
+                      f"(tail_rank={tail_rank}, head_rank={head_rank})")
+    
+    if skipped > 0:
+        print(f"  [WARN] {skipped} triple saltate per nodi mancanti")
+    
+    if len(tail_ranks) == 0:
+        print("  [ERROR] Nessuna tripla valutata!")
+        return {
+            'mrr': 0.0, 'mrr_tail': 0.0, 'mrr_head': 0.0,
+            **{f'hits@{k}': 0.0 for k in hits_k},
+            **{f'hits@{k}_tail': 0.0 for k in hits_k},
+            **{f'hits@{k}_head': 0.0 for k in hits_k},
+            'num_evaluated': 0, 'num_skipped': skipped
+        }
+    
+    # Converti in tensori
+    tail_ranks_t = torch.tensor(tail_ranks, dtype=torch.float, device=device)
+    head_ranks_t = torch.tensor(head_ranks, dtype=torch.float, device=device)
+    all_ranks_t = torch.cat([tail_ranks_t, head_ranks_t])
+    
+    # Calcola metriche
+    results = {
+        'mrr': (1.0 / all_ranks_t).mean().item(),
+        'mrr_tail': (1.0 / tail_ranks_t).mean().item(),
+        'mrr_head': (1.0 / head_ranks_t).mean().item(),
+        'num_evaluated': len(tail_ranks),
+        'num_skipped': skipped,
+    }
+    
+    for k in hits_k:
+        results[f'hits@{k}'] = (all_ranks_t <= k).float().mean().item()
+        results[f'hits@{k}_tail'] = (tail_ranks_t <= k).float().mean().item()
+        results[f'hits@{k}_head'] = (head_ranks_t <= k).float().mean().item()
+    
+    return results
+
+
+# ============================================
+# Funzione helper per stampare i risultati
+# ============================================
+def print_metrics(results, title="Evaluation Results"):
+    """Stampa le metriche in formato leggibile."""
+    print(f"\n{'='*50}")
+    print(f"  {title}")
+    print(f"{'='*50}")
+    print(f"  Triple valutate: {results['num_evaluated']}"
+          f" (saltate: {results['num_skipped']})")
+    print(f"  MRR (overall):   {results['mrr']:.4f}")
+    print(f"  MRR (tail):      {results['mrr_tail']:.4f}")
+    print(f"  MRR (head):      {results['mrr_head']:.4f}")
+    for key in sorted(results.keys()):
+        if key.startswith('hits@') and '_' not in key:
+            k = key.replace('hits@', '')
+            print(f"  Hits@{k} (overall): {results[key]:.4f}")
+            print(f"  Hits@{k} (tail):    {results.get(f'hits@{k}_tail', 0):.4f}")
+            print(f"  Hits@{k} (head):    {results.get(f'hits@{k}_head', 0):.4f}")
+    print(f"{'='*50}\n")
+
+
+# ============================================
+# Esempio di utilizzo
+# ============================================
+"""
+# 1. Raccogli TUTTE le triple della relazione target (train + val + test)
+all_target_triplets = torch.cat([
+    train_target_triplets,
+    val_target_triplets,
+    test_target_triplets
+], dim=0)
+
+# 2. Raccogli tutti i nodi unici del grafo
+all_graph_nodes = torch.unique(torch.cat([
+    graph.edge_index[0], 
+    graph.edge_index[1]
+]))
+
+# 3. Valuta
+results = evaluation_metrics_filtered(
+    model=model,
+    embeddings=embeddings,
+    all_target_triplets=all_target_triplets,
+    test_triplets=test_target_triplets,
+    all_graph_nodes=all_graph_nodes,
+    device=device,
+    hits_k=[1, 3, 10],
+    verbose=True
+)
+
+print_metrics(results, title="PathogenKG — Filtered Setting")
+"""

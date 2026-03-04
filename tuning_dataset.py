@@ -30,6 +30,7 @@ MODELS_PARAMS_PATH = "src/models_params.json"
 MODELS_PARAMS_SWEEP_KEY = "pathogen32-cmp-gene-neg-fix"
 MODELS_PARAMS_MODEL_KEY = MODEL
 USE_ALTERNATIVE_NEG_SAMPLING = True  
+USE_FILTERED_EVAL = True   # True = filtered (standard KGE), False = legacy
 RUN_NUMBER = 3
 
 
@@ -297,6 +298,9 @@ def train_model():
                     gamma,
                     alpha_adv,
                     None,
+                    use_filtered_eval=USE_FILTERED_EVAL,
+                    all_target_triplets=train_val_test_triplets,
+                    num_entities=num_entities,
                 )
 
                 mixed_metric = (
@@ -355,6 +359,9 @@ def train_model():
             gamma,
             alpha_adv,
             None,
+            use_filtered_eval=USE_FILTERED_EVAL,
+            all_target_triplets=train_val_test_triplets,
+            num_entities=num_entities,
         )
 
         final_mixed_metric = (
