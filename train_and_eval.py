@@ -81,7 +81,11 @@ DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEBUG = False
+# Use alternative negative sampling strategy (filtered)
 USE_ALTERNATIVE_NEG_SAMPLING = True
+# Use filtered evaluation metrics (standard in KGE literature) instead of legacy pool-based evaluation
+# Use Type Constrained Filtered Evaluation (more biologically plausible negatives) instead of standard filtered evaluation on full graph
+USE_EVAL_TYPE_CONSTRAINED = True  
 
 """
 Se True, usa negative_sampling_filtered con:
@@ -426,10 +430,18 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
     pos_mask = target_labels.bool()
     test_positives = target_triplets[pos_mask]
     
-    filtered_results = evaluation_metrics_filtered_typeconstrained(
-        model, out, all_target_triplets, test_positives,
-        all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
-    )
+    if USE_EVAL_TYPE_CONSTRAINED:
+      print("[i] Using type-constrained filtered evaluation")
+      filtered_results = evaluation_metrics_filtered_typeconstrained(
+          model, out, all_target_triplets, test_positives,
+          all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
+      )
+    else:
+        print("[i] Using standard filtered evaluation")
+        filtered_results = evaluation_metrics_filtered(
+            model, out, all_target_triplets, test_positives,
+            all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
+        )
     mrr = filtered_results['mrr']
     hits = {k: filtered_results[f'hits@{k}'] for k in [1, 3, 10]}
   else:
