@@ -12,14 +12,67 @@ from src.hetero_rgat import HeterogeneousRGAT as rgat
 from src.hetero_compgcn import HeterogeneousCompGCN as compgcn
 
 # WandB configuration
-PROJECT_NAME = "PathogenKG"  # Replace with your WandB project name
+PROJECT_NAME = "PathogenKG.31"  # Replace with your WandB project name
 # ENTITY = "gidek"  # Replace with your WandB entity
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"  # Replace with your WandB entity
 #%%
 # Hyperparameter search space
 
-# ATtention this configuration requires 32 GB of GPU memory for CompGCN with 2 layers and 128 hidden units, so it may need to be adjusted based on available resources. The "narrowed" config is a more conservative search space that should be feasible on smaller GPUs while still exploring a range of values around the best found in the initial sweep.
-SWEEP_CONFIG = {
+# Attention this configuration requires 28-32 GB of GPU memory for CompGCN with 2 layers and 128 hidden units, so it may need to be adjusted based on available resources. The "narrowed" config is a more conservative search space that should be feasible on smaller GPUs while still exploring a range of values around the best found in the initial sweep.
+
+# Discretized version: reduces search space for faster Bayesian convergence.
+# Values chosen for biomedical KG drug repurposing (~50K nodes, ~2M edges).
+SWEEP_CONFIG_DISCRETE = {
+    'method': 'bayes',
+    'metric': {
+        'name': 'val_mixed_metric',
+        'goal': 'maximize'
+    },
+    'parameters': {
+        'learning_rate': {
+            'values': [1e-4, 3e-4, 5e-4, 1e-3, 3e-3], #, 5e-3]
+        },
+        'regularization': {
+            'values': [1e-4, 5e-4, 1e-3, 5e-3, 1e-2]
+        },
+        'grad_norm': {
+            'values': [0.5, 1.0, 1.5, 2.0]
+        },
+        'dropout': {
+            'values': [0.2, 0.3, 0.4, 0.5]
+        },
+        'weight_decay': {
+            'values': [1e-3, 5e-3, 1e-2, 5e-2]  #  2e-2,
+        },
+        'scheduler_gamma': {
+            'values': [0.99, 0.995, 0.997, 0.999]  # 0.993,
+        },
+        'conv_layer_num': {
+            'values': [1, 2]
+        },
+        'mlp_out_layer': {
+            'values': [64, 128, 200]
+        },
+        'layer_0': {
+            'values': [64, 128, 200]
+        },
+        'layer_1': {
+            'values': [64, 128, 200]
+        },
+        'layer_2': {
+            'values': [64, 128, 200]
+        },
+        'num_bases': {
+            'values': [10, 15, 20]
+        },
+        'opn': {
+            'values': ['sub', 'corr']
+        },
+    }
+}
+
+# Continuous range version (wider exploration, slower convergence)
+SWEEP_CONFIG_RANGE = {
     'method': 'bayes',
     'metric': {
         'name': 'val_mixed_metric',
@@ -46,6 +99,17 @@ SWEEP_CONFIG = {
             'min': 0.2,
             'max': 0.5
         },
+
+		'weight_decay': {
+			'distribution': 'log_uniform_values',
+			'min': 1e-3,
+			'max': 5e-2
+		},
+		'scheduler_gamma': {
+			'distribution': 'uniform',
+			'min': 0.99,
+			'max': 0.999
+		},
         'conv_layer_num': {
             'values': [1, 2]
         },
@@ -70,7 +134,7 @@ SWEEP_CONFIG = {
     }
 }
 
-SWEEP_CONFIG_SMALL_GRAPHS = {
+SWEEP_CONFIG_RANGE_SMALL_GRAPHS = {
 	'method': 'bayes',
 	'metric': {
 		'name': 'val_mixed_metric',
@@ -122,11 +186,12 @@ SWEEP_CONFIG_SMALL_GRAPHS = {
 	}
 }
 
+SWEEP_CONFIG = SWEEP_CONFIG_DISCRETE
 
 # AVAILABLE_MODELS = ['rgcn', 'rgat', 'compgcn']
 # AVAILABLE_MODELS = ['rgat']
 AVAILABLE_MODELS = ['rgcn', 'compgcn']
-AVAILABLE_MODELS = ['compgcn']
+# AVAILABLE_MODELS = ['compgcn']
 BASE_SEED = 42
 USE_ALTERNATIVE_NEG_SAMPLING = True
 USE_FILTERED_EVAL = True   # True = filtered (standard KGE), False = legacy
@@ -271,9 +336,10 @@ def train_model():
 				torch.tensor([rel_ids_sorted.size(0)], device=device)
 			])
 		
-		# Optimizer
-		optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate)
-		
+		# Optimizer + Scheduler
+		optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate, weight_decay=config.weight_decay)
+		scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=config.scheduler_gamma)
+
 		# Training loop
 		best_mixed_metric = 0
 		patience_trigger = 0
@@ -296,7 +362,9 @@ def train_model():
 				training_triplets, train_labels,
 				alpha, gamma, alpha_adv, change_points
 			)
-			
+
+			scheduler.step()
+
 			# Validation
 			if epoch % evaluate_every == 0:
 				val_triplets_np = val_triplets.cpu().numpy() if torch.is_tensor(val_triplets) else val_triplets
@@ -468,7 +536,7 @@ if __name__ == "__main__":
 	
 	print("🔬 Starting hyperparameter optimization with WandB")
 	print(f"🖥️ Device: {device}")
-	print(f"📊 Total planned runs: {len(AVAILABLE_MODELS) * number_of_runs}")
+	print(f"📊 Total planned runs: {len(AVAILABLE_MODELS) * 100}")
 	print("-" * 50)
 	
 	run_hyperparameter_optimization()

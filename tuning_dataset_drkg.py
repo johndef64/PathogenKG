@@ -316,7 +316,8 @@ def train_model():
             for node_type, features in flattened_features_per_type.items()
         }
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=fixed_params["learning_rate"])
+        optimizer = torch.optim.AdamW(model.parameters(), lr=fixed_params["learning_rate"], weight_decay=fixed_params["weight_decay"])
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=fixed_params["scheduler_gamma"])
 
         best_mixed_metric = -float("inf")
         best_model_state = None
@@ -348,6 +349,8 @@ def train_model():
                 alpha_adv,
                 None,
             )
+
+            scheduler.step()
 
             if epoch % evaluate_every == 0:
                 if not USE_ALTERNATIVE_NEG_SAMPLING:

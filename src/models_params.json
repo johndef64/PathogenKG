@@ -1,130 +1,136 @@
 {
-
-  "pathogen34-cmp-gene": {   
-    "rcgn_old":{
-        "layer_0": 32,
-        "layer_1": 8, 
-        "layer_2": 32,
-        "grad_norm": 4.81676751697978,
-        "num_bases": 20,
-        "model_name": "rgcn",
-        "learning_rate": 0.000479221480587765,
-        "mlp_out_layer": 16,
-        "conv_layer_num": 2,
-        "regularization": 1.5994591918278636e-05
-      },
-      "rgcn":{
-      "layer_0": 32, 
-      "layer_1": 16, 
-      "layer_2": 8, 
-      "grad_norm": 2.664619057620471, 
-      "num_bases": 30, 
-      "model_name": "rgcn", 
-      "learning_rate": 0.0001636437697721685,
-       "mlp_out_layer": 32, 
-      "conv_layer_num": 3, 
-      "regularization": 0.0024514218302963153
+    "pathogen34-cmp-gene": {
+        "rcgn_old": {
+            "layer_0": 32,
+            "layer_1": 8,
+            "layer_2": 32,
+            "grad_norm": 4.81676751697978,
+            "num_bases": 20,
+            "model_name": "rgcn",
+            "learning_rate": 0.000479221480587765,
+            "mlp_out_layer": 16,
+            "conv_layer_num": 2,
+            "regularization": 1.5994591918278636e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rgcn": {
+            "layer_0": 32,
+            "layer_1": 16,
+            "layer_2": 8,
+            "grad_norm": 2.664619057620471,
+            "num_bases": 30,
+            "model_name": "rgcn",
+            "learning_rate": 0.0001636437697721685,
+            "mlp_out_layer": 32,
+            "conv_layer_num": 3,
+            "regularization": 0.0024514218302963153,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rgat": {},
+        "compgcn": {
+            "conv_layer_num": 3,
+            "dropout": 0.49576013566205784,
+            "layer_0": 8,
+            "layer_1": 32,
+            "layer_2": 64,
+            "mlp_out_layer": 32,
+            "learning_rate": 0.00019390873242212473,
+            "opn": "sub",
+            "grad_norm": 1.056740604005027,
+            "regularization": 0.0017364783276804412,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
     },
-  
-
-    "rgat": {},
-
-    "compgcn": {
-      "conv_layer_num": 3,
-      "dropout": 0.49576013566205784,
-      "layer_0": 8,
-      "layer_1": 32,
-      "layer_2": 64,
-      "mlp_out_layer": 32,
-      "learning_rate": 0.00019390873242212473,
-      "opn": "sub",
-      "grad_norm": 1.056740604005027,
-      "regularization": 0.0017364783276804412
-    }
-
-  },
-
-  "pathogen34-cmp-gene-neg-fix": {
-    "rgcn": {
-      "conv_layer_num": 3,
-      "layer_0": 16, 
-      "layer_1": 16, 
-      "layer_2": 16, 
-      "grad_norm": 1.2359459626710445, 
-      "num_bases": 10, 
-      "model_name": "rgcn", 
-      "learning_rate": 0.001188640830583205,
-       "mlp_out_layer": 32, 
-      "regularization": 0.00000177100087697881
+    "pathogen34-cmp-gene-neg-fix": {
+        "rgcn": {
+            "conv_layer_num": 3,
+            "layer_0": 16,
+            "layer_1": 16,
+            "layer_2": 16,
+            "grad_norm": 1.2359459626710445,
+            "num_bases": 10,
+            "model_name": "rgcn",
+            "learning_rate": 0.001188640830583205,
+            "mlp_out_layer": 32,
+            "regularization": 1.77100087697881e-06,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rgat": {},
+        "compgcn": {
+            "conv_layer_num": 3,
+            "dropout": 0.2334615069280862,
+            "layer_0": 64,
+            "layer_1": 16,
+            "layer_2": 8,
+            "mlp_out_layer": 16,
+            "learning_rate": 0.0003988884413382042,
+            "opn": "corr",
+            "grad_norm": 0.5946306481700605,
+            "regularization": 0.000280785439553541,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
     },
-    "rgat": {},
-    
-    "compgcn": {
-      "conv_layer_num": 3,
-      "dropout": 0.2334615069280862,
-      "layer_0": 64,
-      "layer_1": 16,
-      "layer_2": 8,
-      "mlp_out_layer": 16,
-      "learning_rate": 0.0003988884413382042,
-      "opn": "corr",
-      "grad_norm": 0.5946306481700605,
-      "regularization": 0.000280785439553541
-    }
-  },
-
-  "pathogen31-64":{
-    "compgcn": {
-        "conv_layer_num": 2,
-        "dropout": 0.4,
-        "layer_0": 64,
-        "layer_1": 64,
-        "mlp_out_layer": 64,
-        "learning_rate": 0.001,
-        "opn": "sub",
-        "grad_norm": 1.0,
-        "regularization": 0.001
+    "pathogen31-64": {
+        "compgcn": {
+            "conv_layer_num": 2,
+            "dropout": 0.4,
+            "layer_0": 64,
+            "layer_1": 64,
+            "mlp_out_layer": 64,
+            "learning_rate": 0.0001,
+            "opn": "sub",
+            "grad_norm": 1.0,
+            "regularization": 0.001,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rcgn": {
+            "conv_layer_num": 2,
+            "layer_0": 64,
+            "layer_1": 64,
+            "mlp_out_layer": 64,
+            "learning_rate": 0.0001,
+            "num_bases": 30,
+            "grad_norm": 1.0,
+            "regularization": 0.001,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
     },
-    "rcgn": {
-        "conv_layer_num": 2,
-        "layer_0": 64,
-        "layer_1": 64,
-        "mlp_out_layer": 64,
-        "learning_rate": 0.001,
-        "num_bases": 30,
-        "grad_norm": 1.0,
-        "regularization": 0.001
-
-      }
-  },
-
- "pathogen31-128":{
-    "rgcn": {
-        "conv_layer_num": 2,
-        "layer_0": 128,
-        "layer_1": 128,
-        "mlp_out_layer": 128,
-        "learning_rate": 0.001,
-        "num_bases": 15,
-        "grad_norm": 1.0,
-        "regularization": 0.005
+    "pathogen31-128": {
+        "rgcn": {
+            "conv_layer_num": 2,
+            "layer_0": 128,
+            "layer_1": 128,
+            "mlp_out_layer": 128,
+            "learning_rate": 0.0001,
+            "num_bases": 15,
+            "grad_norm": 1.0,
+            "regularization": 0.005,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "compgcn": {
+            "conv_layer_num": 2,
+            "dropout": 0.5,
+            "layer_0": 128,
+            "layer_1": 128,
+            "mlp_out_layer": 128,
+            "learning_rate": 0.0001,
+            "opn": "sub",
+            "grad_norm": 1.0,
+            "regularization": 0.005,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
     },
-    "compgcn": {
-        "conv_layer_num": 2,
-        "dropout": 0.5,
-        "layer_0": 128,
-        "layer_1": 128,
-        "mlp_out_layer": 128,
-        "learning_rate": 0.001,
-        "opn": "sub",
-        "grad_norm": 1.0,
-        "regularization": 0.005
-    }
- },
-
-  "BIOKG-200":{
-    "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen31-cmp-gene'.",
-
+    "BIOKG-200": {
+        "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen31-cmp-gene'.",
         "rgcn": {
             "conv_layer_num": 2,
             "layer_0": 200,
@@ -133,7 +139,9 @@
             "learning_rate": 0.001,
             "num_bases": 30,
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         },
         "rgat": {
             "conv_layer_num": 2,
@@ -143,7 +151,9 @@
             "learning_rate": 0.001,
             "num_bases": 30,
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         },
         "compgcn": {
             "conv_layer_num": 2,
@@ -154,14 +164,13 @@
             "learning_rate": 0.001,
             "opn": "sub",
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         }
-    
-},
-
-  "BIOKG-128":{
-    "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen31-cmp-gene'.",
-
+    },
+    "BIOKG-128": {
+        "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen31-cmp-gene'.",
         "rgcn": {
             "conv_layer_num": 2,
             "layer_0": 128,
@@ -170,7 +179,9 @@
             "learning_rate": 0.001,
             "num_bases": 30,
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         },
         "rgat": {
             "conv_layer_num": 2,
@@ -180,7 +191,9 @@
             "learning_rate": 0.001,
             "num_bases": 30,
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         },
         "compgcn": {
             "conv_layer_num": 2,
@@ -191,14 +204,13 @@
             "learning_rate": 0.001,
             "opn": "sub",
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         }
-    
-},
-
-  "BIOKG-64":{
-    "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen31-cmp-gene'.",
-
+    },
+    "BIOKG-64": {
+        "_comment": "Parametri calibrati per KG biomedici su scala DRKG (~47K-97K nodi, ~4-6M triple). Basati su: CompGCN paper (Vashishth 2020), DRKG official (TransE dim=400), letteratura drug repurposing. I parametri PathogenKG originali sono mantenuti sotto 'pathogen31-cmp-gene'.",
         "rgcn": {
             "conv_layer_num": 2,
             "layer_0": 64,
@@ -207,7 +219,9 @@
             "learning_rate": 0.001,
             "num_bases": 30,
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         },
         "rgat": {
             "conv_layer_num": 2,
@@ -217,7 +231,9 @@
             "learning_rate": 0.001,
             "num_bases": 30,
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         },
         "compgcn": {
             "conv_layer_num": 2,
@@ -228,118 +244,132 @@
             "learning_rate": 0.001,
             "opn": "sub",
             "grad_norm": 1.0,
-            "regularization": 0.00001
+            "regularization": 1e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
         }
-    
-},
-
-  "default": {
-    "rgcn": {
-      "conv_layer_num":3,
-      "layer_0":16,
-      "layer_1":64,
-      "layer_2":64,
-      "mlp_out_layer":8,
-      "learning_rate":0.01,
-      "num_bases":50,
-      "grad_norm":0.6,
-      "regularization":0.008
     },
-    "rgat": {
-      "conv_layer_num":1,
-      "layer_0":10,
-      "layer_1":5,
-      "mlp_out_layer":40,
-      "learning_rate":0.01,
-      "num_bases":16,
-      "grad_norm":1,
-      "regularization":0.01
+    "default": {
+        "rgcn": {
+            "conv_layer_num": 3,
+            "layer_0": 16,
+            "layer_1": 64,
+            "layer_2": 64,
+            "mlp_out_layer": 8,
+            "learning_rate": 0.01,
+            "num_bases": 50,
+            "grad_norm": 0.6,
+            "regularization": 0.008,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rgat": {
+            "conv_layer_num": 1,
+            "layer_0": 10,
+            "layer_1": 5,
+            "mlp_out_layer": 40,
+            "learning_rate": 0.01,
+            "num_bases": 16,
+            "grad_norm": 1,
+            "regularization": 0.01,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "compgcn": {
+            "conv_layer_num": 3,
+            "dropout": 0.6,
+            "layer_0": 16,
+            "layer_1": 32,
+            "layer_2": 8,
+            "mlp_out_layer": 16,
+            "learning_rate": 0.02,
+            "opn": "corr",
+            "grad_norm": 0.9,
+            "regularization": 9e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
     },
-    "compgcn": {
-      "conv_layer_num":3,
-      "dropout":0.6,
-      "layer_0":16,
-      "layer_1":32,
-      "layer_2":8,
-      "mlp_out_layer":16,
-      "learning_rate":0.02,
-      "opn":"corr",
-      "grad_norm":0.9,
-      "regularization":9e-05
+    "DRKG-reduced-legacy": {
+        "rgcn": {
+            "conv_layer_num": 3,
+            "layer_0": 16,
+            "layer_1": 64,
+            "layer_2": 64,
+            "mlp_out_layer": 8,
+            "learning_rate": 0.01,
+            "num_bases": 50,
+            "grad_norm": 0.6,
+            "regularization": 0.008,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rgat": {
+            "conv_layer_num": 1,
+            "layer_0": 10,
+            "layer_1": 5,
+            "mlp_out_layer": 40,
+            "learning_rate": 0.01,
+            "num_bases": 16,
+            "grad_norm": 1,
+            "regularization": 0.01,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "compgcn": {
+            "conv_layer_num": 3,
+            "dropout": 0.6,
+            "layer_0": 16,
+            "layer_1": 32,
+            "layer_2": 8,
+            "mlp_out_layer": 16,
+            "learning_rate": 0.02,
+            "opn": "corr",
+            "grad_norm": 0.9,
+            "regularization": 9e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
+    },
+    "DRKG-legacy": {
+        "rgcn": {
+            "conv_layer_num": 3,
+            "layer_0": 16,
+            "layer_1": 64,
+            "layer_2": 64,
+            "mlp_out_layer": 8,
+            "learning_rate": 0.01,
+            "num_bases": 50,
+            "grad_norm": 0.6,
+            "regularization": 0.008,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "rgat": {
+            "conv_layer_num": 1,
+            "layer_0": 10,
+            "layer_1": 5,
+            "mlp_out_layer": 40,
+            "learning_rate": 0.01,
+            "num_bases": 16,
+            "grad_norm": 1,
+            "regularization": 0.01,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        },
+        "compgcn": {
+            "conv_layer_num": 3,
+            "dropout": 0.6,
+            "layer_0": 16,
+            "layer_1": 32,
+            "layer_2": 8,
+            "mlp_out_layer": 16,
+            "learning_rate": 0.02,
+            "opn": "corr",
+            "grad_norm": 0.9,
+            "regularization": 9e-05,
+            "weight_decay": 0.01,
+            "scheduler_gamma": 0.995
+        }
     }
-  },
-
-  "DRKG-reduced": {
-    "rgcn": {
-      "conv_layer_num":3,
-      "layer_0":16,
-      "layer_1":64,
-      "layer_2":64,
-      "mlp_out_layer":8,
-      "learning_rate":0.01,
-      "num_bases":50,
-      "grad_norm":0.6,
-      "regularization":0.008
-    },
-    "rgat": {
-      "conv_layer_num":1,
-      "layer_0":10,
-      "layer_1":5,
-      "mlp_out_layer":40,
-      "learning_rate":0.01,
-      "num_bases":16,
-      "grad_norm":1,
-      "regularization":0.01
-    },
-    "compgcn": {
-      "conv_layer_num":3,
-      "dropout":0.6,
-      "layer_0":16,
-      "layer_1":32,
-      "layer_2":8,
-      "mlp_out_layer":16,
-      "learning_rate":0.02,
-      "opn":"corr",
-      "grad_norm":0.9,
-      "regularization":9e-05
-    }
-  },
-
-  "DRKG-legacy": {
-    "rgcn": {
-      "conv_layer_num":3,
-      "layer_0":16,
-      "layer_1":64,
-      "layer_2":64,
-      "mlp_out_layer":8,
-      "learning_rate":0.01,
-      "num_bases":50,
-      "grad_norm":0.6,
-      "regularization":0.008
-    },
-    "rgat": {
-      "conv_layer_num":1,
-      "layer_0":10,
-      "layer_1":5,
-      "mlp_out_layer":40,
-      "learning_rate":0.01,
-      "num_bases":16,
-      "grad_norm":1,
-      "regularization":0.01
-    },
-    "compgcn": {
-      "conv_layer_num":3,
-      "dropout":0.6,
-      "layer_0":16,
-      "layer_1":32,
-      "layer_2":8,
-      "mlp_out_layer":16,
-      "learning_rate":0.02,
-      "opn":"corr",
-      "grad_norm":0.9,
-      "regularization":9e-05
-    }
-  }
-
-
 }

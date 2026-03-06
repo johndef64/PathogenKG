@@ -247,8 +247,8 @@ def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversam
     train_val_triplets, test_triplets, train_val_test_triplets, edge_index, \
     ent2id, relation2id
 
-def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations,
-               config_name = "pathogen32-cmp-gene-neg-fix"):
+def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations, config_name = "pathogen31-128"):
+
   with open(models_params_path, 'r') as f:
     models_params = json.load(f)
   
@@ -311,7 +311,7 @@ def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entiti
   else:
     return None
   
-  return model, model_params['learning_rate'], model_params['regularization'], model_params['grad_norm']
+  return model, model_params['learning_rate'], model_params['regularization'], model_params['grad_norm'], model_params['weight_decay'], model_params['scheduler_gamma']
 
 
 
@@ -647,6 +647,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
       # Pretraining loop
       optimizer_pre = torch.optim.Adam(pre_model.parameters(), lr=lr)
 
+
       change_points_pre = None
       if model_name == 'rgat':
         # pt_full_index è un numpy array [src, rel, dst]
@@ -691,8 +692,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
     in_channels_dict, num_nodes_per_type, num_entities, num_relations, \
     train_triplets, train_index, flattened_features_per_type, val_triplets, \
     train_val_triplets, test_triplets, train_val_test_triplets, \
-    edge_index, ent2id, relation2id = get_dataset(dataset_tsv, task, validation_size, test_size, quiet, \
-                            random_seed, oversample_rate, undersample_rate)
+    edge_index, ent2id, relation2id = get_dataset(dataset_tsv, task, validation_size, test_size, quiet, random_seed, oversample_rate, undersample_rate)
   
     # --- preparazione parametri per neg sampling corretto ---
     all_entities_arr = np.arange(num_entities)
@@ -702,7 +702,7 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
     # print(f'ok ({end_time_dataset} seconds)')
     
     # Model definition
-    model, lr, regularization, grad_norm = get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations)
+    model, lr, regularization, grad_norm, weight_decay, scheduler_gamma = get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations)
 
     # Move to device
     # model                       = model.to(device)
@@ -727,7 +727,13 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
       ])
       
     # Optimizer definition
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=scheduler_gamma)
+
+
+
 
     # Training runs
     torch.autograd.set_detect_anomaly(True)
@@ -802,7 +808,8 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
         epochs_tqdm.set_postfix(loss=train_metrics["Loss"], Tr_Auroc=train_metrics["Auroc"], Tr_Auprc=train_metrics["Auprc"],
                                 Val_Auroc=val_metrics["Auroc"], Val_Auprc=val_metrics["Auprc"], Val_mrr=val_metrics["MRR"], Val_hits=val_metrics["Hits@"],
                                 metric=val_loss, best_metric=best_val_loss)
-      
+        scheduler.step()
+
       # Load best model
       if best_model_found:
         model.load_state_dict(torch.load(run_model_save_path))
