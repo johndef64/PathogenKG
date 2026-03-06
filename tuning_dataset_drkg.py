@@ -22,18 +22,36 @@ from train_and_eval import (
 
 MODEL = "compgcn"
 # WandB configuration
-PROJECT_NAME = f"DRKG-{MODEL}-treat-abl-eval-typed"
+PROJECT_NAME = f"DRKG-{MODEL}128-treat-abl-eval-typed"
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"
 # # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip
 BASE_TSV_PATH = "dataset/drkg/drkg_reduced.zip"
 MODELS_PARAMS_PATH = "src/models_params.json"
-MODELS_PARAMS_SWEEP_KEY = "pathogen32-cmp-gene-neg-fix"
+MODELS_PARAMS_SWEEP_KEY = "pathogen31-128"
+TASK = "TREATMENT"
 MODELS_PARAMS_MODEL_KEY = MODEL
 USE_ALTERNATIVE_NEG_SAMPLING = True  
 USE_FILTERED_EVAL = True   # True = filtered (standard KGE), False = legacy
 STANDARDIZED_SAMPLED_EVAL = False  # Se True, usa un set fisso di negativi campionati per valutazione MRR/Hits@K, altrimenti nuovi negativi ogni volta (più variabilità ma più "realistico"). Se USE_FILTERED_EVAL è True, è consigliabile mantenere STANDARDIZED_SAMPLED_EVAL a True per avere metriche più stabili e comparabili tra run.
 # STANDARDIZED_SAMPLED_EVAL only for USE_ALTERNATIVE_NEG_SAMPLING = False
 
+
+# TASK = ['CMP_BIND',
+#         'DOWNREGULATION',
+#         'BLOCKER',
+#         'gene_OTHER_cmp',
+#         'ACTIVATOR',
+#         'MODULATOR',
+#         'POSITIVE_ALLOSTERIC_MODULATOR',
+#         'ALLOSTERIC_MODULATOR',
+#         'PARTIAL_AGONIST',
+#         'ANTIBODY',
+#         'ENZYME',
+#         'carrier',
+#         'E',
+#         'K',
+#         'UPREGULATION',
+#         'O']
 
 
 RUN_NUMBER = 6
@@ -238,24 +256,7 @@ def train_model():
 
     # Fixed training setup
     tsv_path = BASE_TSV_PATH
-    task = ['CMP_BIND',
-            'DOWNREGULATION',
-            'BLOCKER',
-            'gene_OTHER_cmp',
-            'ACTIVATOR',
-            'MODULATOR',
-            'POSITIVE_ALLOSTERIC_MODULATOR',
-            'ALLOSTERIC_MODULATOR',
-            'PARTIAL_AGONIST',
-            'ANTIBODY',
-            'ENZYME',
-            'carrier',
-            'E',
-            'K',
-            'UPREGULATION',
-            'O']
-    # task = "CMP_BIND"
-    task = "TREATMENT"
+    task = TASK
     validation_size = 0.1
     test_size = 0.2
     epochs = 200
@@ -448,9 +449,9 @@ def train_model():
         wandb.log(
             {
                 "dataset_variant": dataset_variant,
-                "params_group_train": "pathogen32-cmp-gene",
-                "params_group_val": "pathogen32-cmp-gene-val",
-                "params_group_test": "pathogen32-cmp-gene-test",
+                "params_group_train": "pathogen31-cmp-gene",
+                "params_group_val": "pathogen31-cmp-gene-val",
+                "params_group_test": "pathogen31-cmp-gene-test",
                 "last_val_mixed_metric": last_val_metric,
                 "best_val_mixed_metric": best_mixed_metric,
                 "test_auroc": test_metrics["Auroc"],

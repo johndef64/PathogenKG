@@ -76,9 +76,10 @@ dataset = 'PathogenKG_merged.tsv'
 dataset = 'PathogenKG_n19.tsv'
 
 
-dataset = 'PathogenKG_n34_core.tsv.zip'
+dataset = 'PathogenKG_n31_core.tsv.zip'
 DEFAULT_TRAIN_TSV = os.path.join('dataset', dataset)
 models_params_path = './src/models_params.json'
+CONFIG_NAME = 'pathogen31-128'
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 DEBUG = False
 # Use alternative negative sampling strategy (filtered)
@@ -246,23 +247,24 @@ def get_dataset(tsv_path, task, validation_size, test_size, quiet, seed, oversam
     train_val_triplets, test_triplets, train_val_test_triplets, edge_index, \
     ent2id, relation2id
 
-def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations):
+def get_model(model_name, task, in_channels_dict, num_nodes_per_type, num_entities, num_relations,
+               config_name = "pathogen32-cmp-gene-neg-fix"):
   with open(models_params_path, 'r') as f:
     models_params = json.load(f)
   
-  # Select params by sweep (not by task). Fallback to "default" sweep if needed.
-  sweep = "pathogen32-cmp-gene-neg-fix"
-  if sweep not in models_params:
-    print(f"[get_model] Sweep '{sweep}' not found, using 'default' sweep")
-    sweep = "default"
+  # Select params by config (not by task). Fallback to "default" config if needed.
+  
+  if config_name not in models_params:
+    print(f"[get_model] Config '{config_name}' not found, using 'default' config")
+    config_name = "default"
 
-  if sweep not in models_params:
-    raise KeyError("[get_model] Neither requested sweep nor 'default' found in models_params.json")
-  if model_name not in models_params[sweep]:
-    raise KeyError(f"[get_model] Model '{model_name}' not found in sweep '{sweep}'")
+  if config_name not in models_params:
+    raise KeyError("[get_model] Neither requested config nor 'default' found in models_params.json")
+  if model_name not in models_params[config_name]:
+    raise KeyError(f"[get_model] Model '{model_name}' not found in config '{config_name}'")
 
-  model_params = models_params[sweep][model_name]
-  print(f"[get_model] Using parameters from sweep '{sweep}': {model_params}")
+  model_params = models_params[config_name][model_name]
+  print(f"[get_model] Using parameters from config '{config_name}': {model_params}")
 
   conv_hidden_channels = {f'layer_{x}':model_params[f'layer_{x}']  for x in range(model_params['conv_layer_num'])} 
 
@@ -431,13 +433,13 @@ def test(model, reg_param, x_dict, index , target_triplets, target_labels, train
     test_positives = target_triplets[pos_mask]
     
     if USE_EVAL_TYPE_CONSTRAINED:
-      print("[i] Using type-constrained filtered evaluation")
+      # print("[i] Using type-constrained filtered evaluation")
       filtered_results = evaluation_metrics_filtered_typeconstrained(
           model, out, all_target_triplets, test_positives,
           all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
       )
     else:
-        print("[i] Using standard filtered evaluation")
+      # print("[i] Using standard filtered evaluation")
         filtered_results = evaluation_metrics_filtered(
             model, out, all_target_triplets, test_positives,
             all_graph_nodes, target_triplets.device, hits_k=[1, 3, 10]
@@ -632,7 +634,14 @@ def main(model_name, dataset_tsv, task, runs, epochs, patience, validation_size,
         _, _, _, _, _, _, _) = get_dataset_pretrain(dataset_tsv, quiet)
       
       # Initialize model
-      pre_model, lr, regularization, grad_norm = get_model(model_name, task, pt_in_channels, pt_num_nodes_per_type, pt_num_entities, pt_num_relations)
+      pre_model, lr, regularization, grad_norm = get_model(model_name, 
+                                                           task, 
+                                                           pt_in_channels,
+                                                           pt_num_nodes_per_type,
+                                                           pt_num_entities, 
+                                                           pt_num_relations,
+                                                           config_name=CONFIG_NAME
+                                                           )
       pre_model = pre_model.to(device)
 
       # Pretraining loop
@@ -971,7 +980,7 @@ if __name__ == '__main__':
 
   -----------------------------------------------------------
   # optimized training commands: 
-  python train_and_eval.py --model compgcn --run 3 --epochs 400  --tsv dataset/PathogenKG_n34_core.tsv.zip --early_stopping --negative_sampling filtered
+  python train_and_eval.py --model compgcn --run 3 --epochs 400  --tsv dataset/PathogenKG_n31_core.tsv.zip --early_stopping --negative_sampling filtered
 
   -----------------------------------------------------------
   

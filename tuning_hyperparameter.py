@@ -17,7 +17,60 @@ PROJECT_NAME = "PathogenKG"  # Replace with your WandB project name
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"  # Replace with your WandB entity
 #%%
 # Hyperparameter search space
+
+# ATtention this configuration requires 32 GB of GPU memory for CompGCN with 2 layers and 128 hidden units, so it may need to be adjusted based on available resources. The "narrowed" config is a more conservative search space that should be feasible on smaller GPUs while still exploring a range of values around the best found in the initial sweep.
 SWEEP_CONFIG = {
+    'method': 'bayes',
+    'metric': {
+        'name': 'val_mixed_metric',
+        'goal': 'maximize'
+    },
+    'parameters': {
+        'learning_rate': {
+            'distribution': 'log_uniform_values',
+            'min': 5e-4,
+            'max': 5e-3
+        },
+        'regularization': {
+            'distribution': 'log_uniform_values',
+            'min': 1e-4,
+            'max': 1e-2
+        },
+        'grad_norm': {
+            'distribution': 'uniform',
+            'min': 0.5,
+            'max': 2.0
+        },
+        'dropout': {
+            'distribution': 'uniform',
+            'min': 0.2,
+            'max': 0.5
+        },
+        'conv_layer_num': {
+            'values': [1, 2]
+        },
+        'mlp_out_layer': {
+            'values': [64, 128, 200]
+        },
+        'layer_0': {
+            'values': [64, 128, 200]
+        },
+        'layer_1': {
+            'values': [64, 128, 200]
+        },
+        'layer_2': {
+            'values': [64, 128, 200]
+        },
+        'num_bases': {
+            'values': [10, 15, 20]
+        },
+        'opn': {
+            'values': ['sub', 'corr']
+        },
+    }
+}
+
+SWEEP_CONFIG_SMALL_GRAPHS = {
 	'method': 'bayes',
 	'metric': {
 		'name': 'val_mixed_metric',
@@ -68,24 +121,6 @@ SWEEP_CONFIG = {
 
 	}
 }
-
-SWEEP_CONFIG_NARROWED = {'method': 'bayes',
- 'metric': {'name': 'val_mixed_metric', 'goal': 'maximize'},
- 'parameters': {'learning_rate': {'distribution': 'log_uniform_values',
-   'min': 0.0001,
-   'max': 0.01},
-  'regularization': {'distribution': 'log_uniform_values',
-   'min': 1e-06,
-   'max': 0.01},
-  'grad_norm': {'distribution': 'uniform', 'min': 0.5, 'max': 5.0},
-  'dropout': {'distribution': 'uniform', 'min': 0.0162, 'max': 0.6582},
-  'conv_layer_num': {'values': [2, 3]},
-  'mlp_out_layer': {'values': [8, 16, 32, 64]},
-  'layer_0': {'values': [8, 16, 32]},
-  'layer_1': {'values': [16, 32]},
-  'layer_2': {'values': [8, 16, 32]},
-  'num_bases': {'values': [30, 50]},
-  'opn': {'values': ['corr', 'mult', 'sub']}}}
 
 
 # AVAILABLE_MODELS = ['rgcn', 'rgat', 'compgcn']
@@ -170,7 +205,7 @@ def train_model():
 	model_name = config.model_name
 	
 	# Fixed training parameters
-	tsv_path = 'dataset/PathogenKG_n34_core.tsv.zip'  
+	tsv_path = 'dataset/PathogenKG_n31_core.tsv.zip'  
 	task = "TARGET"  #'Compound-ExtGene'
 	validation_size = 0.1
 	test_size = 0.2
@@ -418,10 +453,11 @@ def run_hyperparameter_optimization():
 		print(f"Run: wandb agent {ENTITY}/{model_project}/{sweep_id}")
 		
 		# Run the sweep (200 runs per model)
+		number_of_runs = 100
 		wandb.agent(
 			sweep_id, 
 			train_model, 
-			count=200,
+			count=number_of_runs,
 			project=model_project,
 			entity=ENTITY
 		)
@@ -432,7 +468,7 @@ if __name__ == "__main__":
 	
 	print("🔬 Starting hyperparameter optimization with WandB")
 	print(f"🖥️ Device: {device}")
-	print(f"📊 Total planned runs: {len(AVAILABLE_MODELS) * 200}")
+	print(f"📊 Total planned runs: {len(AVAILABLE_MODELS) * number_of_runs}")
 	print("-" * 50)
 	
 	run_hyperparameter_optimization()

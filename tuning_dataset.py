@@ -22,12 +22,13 @@ from train_and_eval import (
 
 MODEL = "compgcn"
 # WandB configuration
-PROJECT_NAME = f"PathogenKG-{MODEL}-ablation-eval-typed"
+PROJECT_NAME = f"PathogenKGn31-{MODEL}128-ablation-eval-typed"
 ENTITY = "giovannimaria-defilippis-university-of-naples-federico-ii"
 # # --task CMP_BIND --tsv dataset/drkg/drkg_reduced.zip 
-BASE_TSV_PATH = "dataset/PathogenKG_n34_core.tsv.zip"
+BASE_TSV_PATH = "dataset/PathogenKG_n31_core.tsv.zip"
 MODELS_PARAMS_PATH = "src/models_params.json"
-MODELS_PARAMS_SWEEP_KEY = "pathogen32-cmp-gene-neg-fix"
+MODELS_PARAMS_SWEEP_KEY = "pathogen31-128"
+TASK = "TARGET"
 MODELS_PARAMS_MODEL_KEY = MODEL
 USE_ALTERNATIVE_NEG_SAMPLING = True  
 USE_FILTERED_EVAL = True   # True = filtered (standard KGE), False = legacy
@@ -185,7 +186,7 @@ def train_model():
 
     # Fixed training setup
     tsv_path = BASE_TSV_PATH
-    task = "TARGET"
+    task = TASK
     validation_size = 0.1
     test_size = 0.2
     epochs = 200

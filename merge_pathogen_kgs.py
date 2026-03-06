@@ -25,24 +25,29 @@ taxa_df[taxa_df['STRING_type'] == "core"].domain.value_counts()
 taxa_df[taxa_df['STRING_type'] == "periphery"].domain.value_counts()
 # taxa_df
 
-#%%
 taxa_df.human_pathogen.value_counts()
-
+taxa_df = taxa_df[taxa_df.domain == 'Bacteria']
 pathogen_taxa = taxa_df[taxa_df.human_pathogen != 'No']
 non_pathogen_taxa = taxa_df[taxa_df.human_pathogen == 'No']
 pathogen_taxa_core = pathogen_taxa[pathogen_taxa['STRING_type'] == 'core']
 pathogen_taxa_periphery = pathogen_taxa[pathogen_taxa['STRING_type'] == 'periphery']
 pathogen_taxa.STRING_type.value_counts() 
 
-pathogen_taxa
+# print len of all the sets
+print(f"Total taxa: {len(taxa_df)}")
+print(f"Pathogen taxa: {len(pathogen_taxa)}")
+print(f"Non-pathogen taxa: {len(non_pathogen_taxa)}")
+print(f"Pathogen taxa (core): {len(pathogen_taxa_core)}")
+print(f"Pathogen taxa (periphery): {len(pathogen_taxa_periphery)}")
+
 #%%
 non_pathogen_taxa.STRING_type.value_counts() 
 #%%
 taxa_df[taxa_df['taxonomy_id'].isin(minimal_available_targets_int)].domain.value_counts()
 
 #%%
-
 tax_ids = pathogen_taxa.taxonomy_id.astype(str).to_list()
+# tax_ids = pathogen_taxa.taxonomy_id.astype(str).to_list()
 available_targets = list(set(tax_ids) )
 # available_targets = minimal_available_targets 
 

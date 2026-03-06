@@ -22,11 +22,16 @@ AVAILABLE_TARGETS_v1 = [
 ]
 import pandas as pd
 taxa_df = pd.read_csv("dataset/DRUGBANK/taxons/drugbank_string_taxa_merged_string_with_pathogen_status.csv")
+
 pathogen_taxa = taxa_df[taxa_df.human_pathogen != 'No']
 non_pathogen_taxa = taxa_df[taxa_df.human_pathogen == 'No']
-tax_ids = pathogen_taxa.taxonomy_id.astype(str).to_list()
+
+bacterial_pathogen_taxa = pathogen_taxa[pathogen_taxa.domain == 'Bacteria']
+tax_ids = bacterial_pathogen_taxa.taxonomy_id.astype(str).to_list()
 print(f"Preparing marge for {len(tax_ids)} pathogen taxa")
 
+len(pathogen_taxa), len(non_pathogen_taxa), len(bacterial_pathogen_taxa)
+#%%
 import glob
 
 downloaded_taxa = []
